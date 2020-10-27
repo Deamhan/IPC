@@ -10,8 +10,9 @@
 /*
     Template methods (rpc.h) implementations. It shouldn't be used directly.
 */
+#pragma once
 
-#include "../include/rpc.h"
+#include "../include/rpc.hpp"
 
 #ifndef __FUNCTION_NAME__
 #ifdef __GNUG__ 

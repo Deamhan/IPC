@@ -20,8 +20,8 @@
 
 #ifdef _WIN32
 #   define FD_SETSIZE 1024
-#   include <windows.h>
 #   include <winsock2.h>
+#   include <windows.h>
 #   ifdef __AFUNIX_H__
 #       include <afunix.h>
 #   endif // __AFUNIX_H__
@@ -515,4 +515,4 @@ namespace ipc
 #endif //__AFUNIX_H__
 }
 
-#include "../source/ipc_impl.h"
+#include "../source/ipc_impl.hpp"

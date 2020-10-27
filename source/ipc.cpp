@@ -11,7 +11,7 @@
 #include <string.h>
 #include <thread>
 
-#include "../include/ipc.h"
+#include "../include/ipc.hpp"
 
 namespace ipc
 {

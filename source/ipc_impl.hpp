@@ -11,7 +11,9 @@
     Template methods (rpc.h) implementations. It shouldn't be used directly.
 */
 
-#include "../include/ipc.h"
+#pragma once
+
+#include "../include/ipc.hpp"
 
 namespace ipc
 {
