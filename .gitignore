@@ -33,3 +33,6 @@
 
 #generated docs
 doc/*
+
+#build directories
+*build*/
