@@ -50,8 +50,8 @@ namespace ipc
         return !(count < 0 || need_stop);
     }
     
-    template<typename pred>
-    inline void point_to_point_socket::wait_for_shutdown(const pred& predicate)
+    template<bool use_exceptions> template<typename pred>
+    inline void point_to_point_socket<use_exceptions>::wait_for_shutdown(const pred& predicate)
     {
         wait_for<pred, true>(m_socket, predicate);
     }
@@ -63,7 +63,7 @@ namespace ipc
     #endif
     
     template<typename pred>
-    inline point_to_point_socket server_socket::accept(const pred& predicate)
+    inline point_to_point_socket<false> server_socket::accept(const pred& predicate)
     {
         socket_t p2p_socket = INVALID_SOCKET;
         do
@@ -93,18 +93,42 @@ namespace ipc
                 break;
         } while (true);
     
-        return point_to_point_socket(p2p_socket);
+        return point_to_point_socket<false>(p2p_socket);
     }
     
-    template<typename pred>
-    inline bool point_to_point_socket::read_message(std::vector<char>& message, const pred& predicate)
+    template <bool use_exceptions, typename exception_t>
+    static bool check_status(const char* func, bool status) noexcept(use_exceptions)
     {
+        if (!status)
+        {
+            if constexpr (use_exceptions)
+                throw exception_t(func);
+            else
+                return false;
+        }
+
+        return true;
+    }
+
+    template <bool use_exceptions, typename exception_t>
+    static inline bool update_status(const char* func, bool& status, bool new_status) noexcept(use_exceptions)
+    {
+        status = new_status;
+        return check_status<use_exceptions, exception_t>(func, status);
+    }
+
+    template<bool use_exceptions> template<typename pred>
+    inline bool point_to_point_socket<use_exceptions>::read_message(std::vector<char>& message, const pred& predicate)
+    {
+        if (!check_status<use_exceptions, bad_channel_exception>(__FUNCTION_NAME__, m_ok))
+            return false;
+
         size_t read = 0;
         size_t size = (size_t)(-1);
         while (read < std::min<size_t>(message.size(), size))
         {
             if (!wait_for<pred, true>(m_socket, predicate))
-                return false;
+                return update_status<use_exceptions, channel_read_exception>(__FUNCTION_NAME__, m_ok, false);
     
             int result = recv(m_socket, message.data() + read, message.size() - read, 0);
             if (result < 0)
@@ -113,8 +137,8 @@ namespace ipc
                 if (get_socket_error() == EAGAIN)
                     continue;
     #endif
-    
-                return (read == size);
+
+                return update_status<use_exceptions, channel_read_exception>(__FUNCTION_NAME__, m_ok, read == size);
             }
             else if (result != 0)
             {
@@ -123,19 +147,23 @@ namespace ipc
                     size = *(__MSG_LENGTH_TYPE__*)message.data();
             }
             else
-                return (read == size); // is it correct?
+                return update_status<use_exceptions, channel_read_exception>(__FUNCTION_NAME__, m_ok, read == size);
         }
     
-        return (read == size);
+        return update_status<use_exceptions, channel_read_exception>(__FUNCTION_NAME__, m_ok, read == size);
     }
     
-    template<typename pred>
-    inline bool point_to_point_socket::write_message(const char* message, const pred& predicate)
+    template <bool use_exception> template<typename pred>
+    inline bool point_to_point_socket<use_exception>::write_message(const char* message, const pred& predicate)
     {
+        if (!check_status<use_exceptions, bad_channel_exception>(__FUNCTION_NAME__, m_ok))
+            return false;
+
         do
         {
             if (!wait_for<pred, false>(m_socket, predicate))
-                return false;
+                return update_status<use_exceptions, channel_write_exception>(__FUNCTION_NAME__, m_ok, false);
+
             int result = send(m_socket, message, *(const __MSG_LENGTH_TYPE__*)message, 0);
             if (result >= 0)
                 return true;
@@ -149,7 +177,7 @@ namespace ipc
     #endif
                     continue;
     
-                return false;
+                return update_status<use_exceptions, channel_write_exception>(__FUNCTION_NAME__, m_ok, false);
             }
         } while (true);
     }
@@ -157,6 +185,7 @@ namespace ipc
     inline void unix_client_socket::shutdown()
     {
         ::shutdown(m_socket, SD_SEND);
+        m_ok = false;
     }
 
     template <>
@@ -252,7 +281,7 @@ namespace ipc
 
     [[noreturn]] void throw_message_overflow_exception(const char* func_name, size_t req_size, size_t total_size);
     [[noreturn]] void throw_type_mismatch_exception(const char* func_name, const char* tag, const char* expected);
-    [[noreturn]] void throw_message_format_exception(const char* func_name, size_t req_size, size_t total_size);
+    [[noreturn]] void throw_message_too_short_exception(const char* func_name, size_t req_size, size_t total_size);
     [[noreturn]] void throw_container_overflow_exception(const char* func_name, size_t req_size, size_t total_size);
 
     template <bool use_exceptions> template <typename T, message::Tag TAG, typename>
@@ -354,8 +383,8 @@ namespace ipc
         return *this;
     }
     
-    template<typename pred>
-    inline bool point_to_point_socket::read_message(in_message<false>& message, const pred& predicate)
+    template <bool use_exceptions> template<typename pred>
+    inline bool point_to_point_socket<use_exceptions>::read_message(in_message<false>& message, const pred& predicate)
     {
         message.clear();
         return read_message(message.get_data(), predicate);

@@ -54,7 +54,7 @@ namespace ipc
         if (m_ok)
         {
             m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
-            if (m_socket < 0)
+            if (INVALID_SOCKET == m_socket)
             {
                 m_ok = false;
                 return;
@@ -107,7 +107,7 @@ namespace ipc
         if (m_ok)
         {
             m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
-            if (m_socket < 0)
+            if (INVALID_SOCKET == m_socket)
             {
                 m_ok = false;
                 return;
@@ -164,12 +164,12 @@ namespace ipc
         throw type_mismach_exception(std::move(msg));
     }
 
-    [[noreturn]] void throw_message_format_exception(const char* func_name, size_t req_size, size_t total_size)
+    [[noreturn]] void throw_message_too_short_exception(const char* func_name, size_t req_size, size_t total_size)
     {
         std::string msg(func_name);
         msg.append(": required space ").append(std::to_string(req_size));
         msg.append("exceeds message length of ").append(std::to_string(total_size)).append(" bytes");
-        throw message_format_exception(std::move(msg));
+        throw message_too_short_exception(std::move(msg));
     }
 
     [[noreturn]] void ipc::throw_container_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
@@ -180,6 +180,7 @@ namespace ipc
         throw container_overflow_exception(std::move(msg));
     }
 
+#ifdef __AFUNIX_H__
     const char* ipc::message::to_string(Tag t) noexcept
     {
         switch (t)
@@ -206,6 +207,7 @@ namespace ipc
             return "unknown";
         }
     }
+#endif // __AFUNIX_H__
 
     template <bool use_exceptions>
     out_message<use_exceptions>& out_message<use_exceptions> ::operator << (const std::string_view& s)
@@ -313,7 +315,7 @@ namespace ipc
         {
             m_ok = false;
             if constexpr (use_exceptions)
-                throw_message_format_exception(__FUNCTION_NAME__, m_offset + delta, size);
+                throw_message_too_short_exception(__FUNCTION_NAME__, m_offset + delta, size);
             else
                 return *this;
         }
@@ -376,7 +378,7 @@ namespace ipc
         {
             m_ok = false;
             if constexpr (use_exceptions)
-                throw_message_format_exception(__FUNCTION_NAME__, m_offset + delta, size);
+                throw_message_too_short_exception(__FUNCTION_NAME__, m_offset + delta, size);
             else
                 return *this;
         }
@@ -401,7 +403,7 @@ namespace ipc
         {
             m_ok = false;
             if constexpr (use_exceptions)
-                throw_message_format_exception(__FUNCTION_NAME__, m_offset + blob_len, size);
+                throw_message_too_short_exception(__FUNCTION_NAME__, m_offset + blob_len, size);
             else
                 return *this;
         }

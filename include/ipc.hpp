@@ -119,6 +119,13 @@ namespace ipc
         explicit type_mismach_exception(T&& message) : message_format_exception(std::forward<T>(message)) {}
     };
 
+    class message_too_short_exception : public message_format_exception
+    {
+    public:
+        template <class T>
+        explicit message_too_short_exception(T&& message) : message_format_exception(std::forward<T>(message)) {}
+    };
+
     class bad_message_exception : public std::logic_error
     {
     public:
@@ -245,7 +252,9 @@ namespace ipc
             blob
         };
 
+#ifdef __AFUNIX_H__
         const char* to_string(Tag t) noexcept;
+#endif //_AFUNIX_H__
 
         bool m_ok;
         
@@ -388,7 +397,10 @@ namespace ipc
      *
      * This class allows pair of applications to send and receive data between each other. Instance cannot be created directly:
      * it can be obtained as result of ServerSocket::accept (received instance will represent server side of data channel).
+     * 
+     * \tparam use_exceptions throw exception on error in addition to set fail status
      */
+    template <bool use_exceptions>
     class point_to_point_socket : public socket
     {
     public:
@@ -476,7 +488,7 @@ namespace ipc
      *
      * \warning Unix sockets available on Windows only since Windows 10 build 17063
      */
-    class unix_client_socket : public point_to_point_socket
+    class unix_client_socket : public point_to_point_socket<false>
     {
     public:
         /**
@@ -512,7 +524,7 @@ namespace ipc
          * \return socket for data exchnge
          */
         template<typename pred>
-        point_to_point_socket accept(const pred& predicate);
+        point_to_point_socket<false> accept(const pred& predicate);
     protected:
         server_socket() noexcept : socket(INVALID_SOCKET) {}
 
