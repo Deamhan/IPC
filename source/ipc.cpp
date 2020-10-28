@@ -149,7 +149,7 @@ namespace ipc
     }
 #endif //__AFUNIX_H__
 
-    [[noreturn]] void ipc::throw_message_overflow_message(const char* func_name, size_t req_size, size_t total_size)
+    [[noreturn]] void ipc::throw_message_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
     {
         std::string msg(func_name);
         msg.append(": required space ").append(std::to_string(req_size));
@@ -157,11 +157,27 @@ namespace ipc
         throw message_overflow_exception(std::move(msg));
     }
 
-    [[noreturn]] void ipc::throw_message_tag_mismatch_message(const char* func_name, const char* tag, const char* expected)
+    [[noreturn]] void ipc::throw_type_mismatch_exception(const char* func_name, const char* tag, const char* expected)
     {
         std::string msg(func_name);
         msg.append(": data type mismatch (got ").append(tag).append(", expect").append(expected).append(")");
         throw type_mismach_exception(std::move(msg));
+    }
+
+    [[noreturn]] void throw_message_format_exception(const char* func_name, size_t req_size, size_t total_size)
+    {
+        std::string msg(func_name);
+        msg.append(": required space ").append(std::to_string(req_size));
+        msg.append("exceeds message length of ").append(std::to_string(total_size)).append(" bytes");
+        throw message_format_exception(std::move(msg));
+    }
+
+    [[noreturn]] void ipc::throw_container_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
+    {
+        std::string msg(func_name);
+        msg.append(": required space ").append(std::to_string(req_size));
+        msg.append("exceeds container limit of ").append(std::to_string(total_size)).append(" bytes");
+        throw container_overflow_exception(std::move(msg));
     }
 
     const char* ipc::message::to_string(Tag t) noexcept
@@ -215,7 +231,7 @@ namespace ipc
         {
             m_ok = false;
             if constexpr (use_exceptions)
-                throw_message_overflow_message(__FUNCTION_NAME__, new_used, get_max_size());
+                throw_message_overflow_exception(__FUNCTION_NAME__, new_used, get_max_size());
         }
         else
         {
@@ -242,7 +258,7 @@ namespace ipc
                 throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
             else
                 return *this;
-    }
+        }
 #if __MSG_USE_TAGS__
         const size_t delta = 1;
 #else
@@ -256,7 +272,7 @@ namespace ipc
         {
             m_ok = false;
             if constexpr (use_exceptions)
-                throw_message_overflow_message(__FUNCTION_NAME__, new_used, get_max_size());
+                throw_message_overflow_exception(__FUNCTION_NAME__, new_used, get_max_size());
         }
         else
         {
@@ -276,101 +292,130 @@ namespace ipc
     template out_message<false>& out_message<false>::operator << (const std::pair<const uint8_t*, size_t>& blob);
 
     template <bool use_exceptions>
-    out_message<use_exceptions>& out_message<use_exceptions>::operator << (const message::remote_ptr& p)
+    in_message<use_exceptions>& in_message<use_exceptions>::operator >> (std::string& arg)
     {
-        return push<uint64_t, Tag::remote_ptr>(get_u64_ptr(p));
-    }
-
-    in_message& in_message::operator >> (message::remote_ptr& p)
-    {
-        return pop<uint64_t, Tag::remote_ptr>(get_u64_ptr(p));
-    }
-
-    in_message& in_message::operator >> (std::string& arg)
-    {
-        if (m_ok)
+        if (!m_ok)
         {
-            arg.clear();
-            __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
+            if constexpr (use_exceptions)
+                throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
+            else
+                return *this;
+        }
+
+        arg.clear();
+        __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
 #if __MSG_USE_TAGS__
-            const size_t delta = 2; /*termination '\0' and type tag*/
+        const size_t delta = 2; /*termination '\0' and type tag*/
 #else
-            const size_t delta = 1; /*termination '\0' only*/
+        const size_t delta = 1; /*termination '\0' only*/
 #endif // __MSG_USE_TAGS__
-            if (size < m_offset + delta)
-            {
-                m_ok = false;
+        if (size < m_offset + delta)
+        {
+            m_ok = false;
+            if constexpr (use_exceptions)
+                throw_message_format_exception(__FUNCTION_NAME__, m_offset + delta, size);
+            else
                 return *this;
-            }
+        }
 
 #if __MSG_USE_TAGS__
-            Tag tag = (Tag)m_buffer[m_offset];
-            if (tag != Tag::str)
-            {
-                m_ok = false;
+        Tag tag = (Tag)m_buffer[m_offset];
+        if (tag != Tag::str)
+        {
+            m_ok = false;
+            if constexpr (use_exceptions)
+                throw_type_mismatch_exception(__FUNCTION_NAME__, to_string(tag), to_string(Tag::str));
+            else
                 return *this;
-            }
-            ++m_offset;
+        }
+        ++m_offset;
 #endif // __MSG_USE_TAGS__
-                
-            const char* begin = &m_buffer[m_offset];
-            const char * end = (const char*)memchr(begin, 0, size - m_offset);
-            if (end == nullptr)
-            {
-                m_ok = false;
-                return *this;
-            }
 
-            arg.assign(begin, end - begin);
-            m_offset += arg.length() + 1;
+        const char* begin = &m_buffer[m_offset];
+        const char* end = (const char*)memchr(begin, 0, size - m_offset);
+        if (end == nullptr)
+        {
+            m_ok = false;
+            if constexpr (use_exceptions)
+            {
+                std::string msg(__FUNCTION_NAME__);
+                msg.append(": terminating zero not found");
+                throw container_overflow_exception(std::move(msg));
+            }
+            else
+                return *this;
+        }
+
+        arg.assign(begin, end - begin);
+        m_offset += arg.length() + 1;
+
+        return *this;
+    }
+
+    template in_message<true>& in_message<true>::operator >> (std::string& arg);
+    template in_message<false>& in_message<false>::operator >> (std::string& arg);
+
+    template <bool use_exceptions>
+    in_message<use_exceptions>& in_message<use_exceptions>::operator >> (std::vector<uint8_t>& blob)
+    {
+        if (!m_ok)
+        {
+            if constexpr (use_exceptions)
+                throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
+            else
+                return *this;
+        }
+
+        __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
+#if __MSG_USE_TAGS__
+        const size_t delta = 1 + sizeof(__MSG_LENGTH_TYPE__);
+#else
+        const size_t delta = sizeof(__MSG_LENGTH_TYPE__);
+#endif // __MSG_USE_TAGS__
+        if (size < m_offset + delta)
+        {
+            m_ok = false;
+            if constexpr (use_exceptions)
+                throw_message_format_exception(__FUNCTION_NAME__, m_offset + delta, size);
+            else
+                return *this;
+        }
+
+#if __MSG_USE_TAGS__
+        Tag tag = (Tag)m_buffer[m_offset];
+        if (tag != Tag::blob)
+        {
+            m_ok = false;
+            if constexpr (use_exceptions)
+                throw_type_mismatch_exception(__FUNCTION_NAME__, to_string(tag), to_string(Tag::blob));
+            else
+                return *this;
+        }
+        ++m_offset;
+#endif // __MSG_USE_TAGS__
+
+        const __MSG_LENGTH_TYPE__ blob_len = *(const __MSG_LENGTH_TYPE__*)&m_buffer[m_offset];
+        m_offset += sizeof(__MSG_LENGTH_TYPE__);
+
+        if (size < m_offset + blob_len)
+        {
+            m_ok = false;
+            if constexpr (use_exceptions)
+                throw_message_format_exception(__FUNCTION_NAME__, m_offset + blob_len, size);
+            else
+                return *this;
+        }
+
+        if (blob_len != 0)
+        {
+            blob.resize(blob_len);
+            memcpy(blob.data(), &m_buffer[m_offset], blob_len);
+            m_offset += blob_len;
         }
 
         return *this;
     }
 
-    in_message& in_message::operator >> (std::vector<uint8_t>& blob)
-    {
-        if (m_ok)
-        {
-            __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
-#if __MSG_USE_TAGS__
-            const size_t delta = 1 + sizeof(__MSG_LENGTH_TYPE__);
-#else
-            const size_t delta = sizeof(__MSG_LENGTH_TYPE__);
-#endif // __MSG_USE_TAGS__
-            if (size < m_offset + delta)
-            {
-                m_ok = false;
-                return *this;
-            }
-
-#if __MSG_USE_TAGS__
-            Tag tag = (Tag)m_buffer[m_offset];
-            if (tag != Tag::blob)
-            {
-                m_ok = false;
-                return *this;
-            }
-            ++m_offset;
-#endif // __MSG_USE_TAGS__
-
-            const __MSG_LENGTH_TYPE__ blob_len = *(const __MSG_LENGTH_TYPE__*)&m_buffer[m_offset];
-            m_offset += sizeof(__MSG_LENGTH_TYPE__);
-
-            if (size < m_offset + blob_len)
-            {
-                m_ok = false;
-                return *this;
-            }
-
-            if (blob_len != 0)
-            {
-                blob.resize(blob_len);
-                memcpy(blob.data(), &m_buffer[m_offset], blob_len);
-                m_offset += blob_len;
-            }
-        }
-
-        return *this;
-    }
+    template in_message<true>& in_message<true>::operator >> (std::vector<uint8_t>& blob);
+    template in_message<false>& in_message<false>::operator >> (std::vector<uint8_t>& blob);
 }

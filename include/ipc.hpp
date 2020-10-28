@@ -98,6 +98,13 @@ namespace ipc
         explicit bad_channel_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
+    class container_overflow_exception : public std::logic_error
+    {
+    public:
+        template <class T>
+        explicit container_overflow_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+    };
+
     class message_format_exception : public std::logic_error
     {
     public:
@@ -264,7 +271,7 @@ namespace ipc
      *
      * \tparam use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool use_exceptions = false>
+    template <bool use_exceptions>
     class out_message : public message
     {
     public:
@@ -285,7 +292,7 @@ namespace ipc
          * \brief Serializes user's pointer to internal buffer.
          * \param p - pointer to serialize.
          */
-        out_message& operator << (const remote_ptr& p);
+        out_message& operator << (const remote_ptr& p) { return push<uint64_t, Tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Serializes user's blob to internal buffer.
@@ -317,7 +324,10 @@ namespace ipc
      *
      * This class deserializes user data from its internal buffer which max size is __MSG_MAX_LENGTH__.
      * Empty message should be filled by PointToPointSocket::read_message function first.
+     * 
+     * \tparam use_exceptions throw exception on error in addition to set fail status
      */
+    template <bool use_exceptions>
     class in_message : public message
     {
     public:
@@ -325,8 +335,8 @@ namespace ipc
          * \brief Deserializes data of arithmetic type from internal buffer.
          * \param arg - extracted data.
          */
-        template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
-        in_message& operator >> (T& arg);
+        template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
+        in_message& operator >> (T& arg) { return pop<T, TagTraits<T>::value>(arg); }
 
         /**
          * \brief Deserializes string data from internal buffer.
@@ -338,7 +348,7 @@ namespace ipc
          * \brief Deserializes remote pointer from internal buffer.
          * \param arg - extracted data.
          */
-        in_message& operator >> (remote_ptr& p);
+        in_message& operator >> (remote_ptr& p) { return pop<uint64_t, Tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Deserializes blob from internal buffer.
@@ -406,7 +416,7 @@ namespace ipc
          * \return true if message has been read successfully.
          */
         template<typename pred>
-        bool read_message(in_message& message, const pred& predicate);
+        bool read_message(in_message<false>& message, const pred& predicate);
 
         /**
           * \brief Writes raw message to channel. Use it only if you really need raw message form.
