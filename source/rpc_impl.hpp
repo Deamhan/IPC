@@ -14,16 +14,6 @@
 
 #include "../include/rpc.hpp"
 
-#ifndef __FUNCTION_NAME__
-#ifdef __GNUG__ 
-#define __FUNCTION_NAME__   __PRETTY_FUNCTION__
-#elif defined (_WIN32)
-#define __FUNCTION_NAME__   __FUNCTION__ 
-#else
-#define __FUNCTION_NAME__   __func__
-#endif
-#endif
-
 namespace ipc
 {
     template <typename Dispatcher, typename pred>

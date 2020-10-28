@@ -102,42 +102,56 @@ namespace ipc
     {
     public:
         template <class T>
-        explicit message_format_exception(T& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit message_format_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+    };
+
+    class type_mismach_exception : public message_format_exception
+    {
+    public:
+        template <class T>
+        explicit type_mismach_exception(T&& message) : message_format_exception(std::forward<T>(message)) {}
+    };
+
+    class bad_message_exception : public std::logic_error
+    {
+    public:
+        template <class T>
+        explicit bad_message_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
     class message_overflow_exception : public std::logic_error
     {
     public:
         template <class T>
-        explicit message_overflow_exception(T& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit message_overflow_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
     class channel_read_exception : public channel_exception
     {
     public:
         template <class T>
-        explicit channel_read_exception(T& message) : channel_exception(std::forward<T>(message)) {}
+        explicit channel_read_exception(T&& message) : channel_exception(std::forward<T>(message)) {}
     };
 
     class channel_write_exception : public channel_exception
     {
     public:
         template <class T>
-        explicit channel_write_exception(T& message) : channel_exception(std::forward<T>(message)) {}
+        explicit channel_write_exception(T&& message) : channel_exception(std::forward<T>(message)) {}
     };
 
     class socket_bind_exception : public channel_exception
     {
     public:
         template <class T>
-        explicit socket_bind_exception(T& message) : channel_exception(std::forward<T>(message)) {}
+        explicit socket_bind_exception(T&& message) : channel_exception(std::forward<T>(message)) {}
     };
 
     class unknown_message_tag : public std::logic_error
     {
     public:
         template <class T>
-        explicit unknown_message_tag(T& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit unknown_message_tag(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -203,6 +217,8 @@ namespace ipc
         template <class T>
         struct trivial_type;
 
+        void reset_fail_state() noexcept { m_ok = true; }
+
     protected:
         /**
          * \brief One byte type tags.
@@ -221,6 +237,8 @@ namespace ipc
             remote_ptr,
             blob
         };
+
+        const char* to_string(Tag t) noexcept;
 
         bool m_ok;
         
@@ -246,7 +264,7 @@ namespace ipc
      *
      * \tparam use_exceptions throw exception on error in addition to set fail status
      */
-    //template <bool use_exceptions>
+    template <bool use_exceptions = false>
     class out_message : public message
     {
     public:
@@ -255,7 +273,7 @@ namespace ipc
          * \param arg - data to serialize.
          */
         template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
-        out_message& operator << (T arg);
+        out_message& operator << (T arg) { return push<T, TagTraits<T>::value>(arg); }
 
         /**
          * \brief Serializes user's data of string type (std::string, const char*, std::string_view) to internal buffer.
@@ -420,7 +438,7 @@ namespace ipc
           * \return true if message writing has been started successfully
           */
         template<typename pred>
-        bool write_message(out_message& message, const pred& predicate) { return write_message(message.get_data().data(), predicate); }
+        bool write_message(out_message<false>& message, const pred& predicate) { return write_message(message.get_data().data(), predicate); }
 
         /**
           * \brief Waits for shutdown signal.

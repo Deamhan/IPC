@@ -15,6 +15,16 @@
 
 #include "../include/ipc.hpp"
 
+#ifndef __FUNCTION_NAME__
+#ifdef __GNUG__ 
+#define __FUNCTION_NAME__   __PRETTY_FUNCTION__
+#elif defined (_WIN32)
+#define __FUNCTION_NAME__   __FUNCTION__ 
+#else
+#define __FUNCTION_NAME__   __func__
+#endif
+#endif
+
 namespace ipc
 {
     template<typename pred, bool reading>
@@ -240,9 +250,20 @@ namespace ipc
         static const bool value = true;
     };
 
-    template <typename T, message::Tag TAG, typename>
-    inline out_message& out_message::push(T arg)
+    [[noreturn]] void throw_message_overflow_message(const char* func_name, size_t req_size, size_t total_size);
+    [[noreturn]] void throw_message_tag_mismatch_message(const char* func_name, const char* tag, const char* expected);
+
+    template <bool use_exceptions> template <typename T, message::Tag TAG, typename>
+    inline out_message<use_exceptions>& out_message<use_exceptions>::push(T arg)
     {
+        if (!m_ok)
+        {
+            if constexpr (use_exceptions)
+                throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
+            else
+                return *this;
+        }
+
     #if __MSG_USE_TAGS__
         const size_t delta = 1;
     #else
@@ -253,7 +274,10 @@ namespace ipc
         if (new_used > get_max_size())
         {
             m_ok = false;
-            return *this;
+            if constexpr (use_exceptions)
+                throw_message_overflow_message(__FUNCTION_NAME__, new_used, get_max_size());
+            else
+                return *this;
         }
     
     #if __MSG_USE_TAGS__
@@ -266,13 +290,8 @@ namespace ipc
         return *this;
     }
     
-    template <typename T, typename>
-    inline out_message& out_message::operator << (T arg)
-    {
-        return push<T, TagTraits<T>::value>(arg);
-    }
-    
-    inline void out_message::clear()
+    template <bool use_exceptions>
+    inline void out_message<use_exceptions>::clear()
     {
         m_buffer.resize(sizeof(__MSG_LENGTH_TYPE__));
         *(__MSG_LENGTH_TYPE__*)m_buffer.data() = sizeof(__MSG_LENGTH_TYPE__);
@@ -289,32 +308,31 @@ namespace ipc
     template <typename T, message::Tag TAG, typename>
     inline in_message& in_message::pop(T& arg)
     {
-        if (m_ok)
+#if __MSG_USE_TAGS__
+        const size_t delta = 1;
+#else
+        const size_t delta = 0;
+#endif // __MSG_USE_TAGS__
+
+        const size_t size = *(const __MSG_LENGTH_TYPE__*)m_buffer.data();
+        size_t new_offset = m_offset + sizeof(T) + delta;
+        if (size < new_offset)
         {
-    #if __MSG_USE_TAGS__
-            const size_t delta = 1;
-    #else
-            const size_t delta = 0;
-    #endif // __MSG_USE_TAGS__
-    
-            const size_t size = *(const __MSG_LENGTH_TYPE__*)m_buffer.data();
-            size_t new_offset = m_offset + sizeof(T) + delta;
-            if (size < new_offset)
-                m_ok = false;
-            else
+            m_ok = false;
+        }   
+        else
+        {
+#if __MSG_USE_TAGS__
+            message::Tag tag = (message::Tag)m_buffer[m_offset];
+            if (tag != TAG)
             {
-    #if __MSG_USE_TAGS__
-                message::Tag tag = (message::Tag)m_buffer[m_offset];
-                if (tag != TAG)
-                {
-                    m_ok = false;
-                    return *this;
-                }
-                ++m_offset;
-    #endif // __MSG_USE_TAGS__
-                arg = *(T*)&m_buffer[m_offset];
-                m_offset = new_offset;
+                m_ok = false;
+                return *this;
             }
+            ++m_offset;
+#endif // __MSG_USE_TAGS__
+            arg = *(T*)&m_buffer[m_offset];
+            m_offset = new_offset;
         }
     
         return *this;

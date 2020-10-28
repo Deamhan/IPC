@@ -149,8 +149,59 @@ namespace ipc
     }
 #endif //__AFUNIX_H__
 
-    out_message& out_message::operator << (const std::string_view& s)
+    [[noreturn]] void ipc::throw_message_overflow_message(const char* func_name, size_t req_size, size_t total_size)
     {
+        std::string msg(func_name);
+        msg.append(": required space ").append(std::to_string(req_size));
+        msg.append("exceeds limit of ").append(std::to_string(total_size)).append(" bytes");
+        throw message_overflow_exception(std::move(msg));
+    }
+
+    [[noreturn]] void ipc::throw_message_tag_mismatch_message(const char* func_name, const char* tag, const char* expected)
+    {
+        std::string msg(func_name);
+        msg.append(": data type mismatch (got ").append(tag).append(", expect").append(expected).append(")");
+        throw type_mismach_exception(std::move(msg));
+    }
+
+    const char* ipc::message::to_string(Tag t) noexcept
+    {
+        switch (t)
+        {
+        case ipc::message::Tag::u32:
+            return "u32";
+        case ipc::message::Tag::i32:
+            return "i32";
+        case ipc::message::Tag::u64:
+            return "u64";
+        case ipc::message::Tag::i64:
+            return "i64";
+        case ipc::message::Tag::fp64:
+            return "fp64";
+        case ipc::message::Tag::str:
+            return "str";
+        case ipc::message::Tag::chr:
+            return "chr";
+        case ipc::message::Tag::remote_ptr:
+            return "remote_ptr";
+        case ipc::message::Tag::blob:
+            return "blob";
+        default:
+            return "unknown";
+        }
+    }
+
+    template <bool use_exceptions>
+    out_message<use_exceptions>& out_message<use_exceptions> ::operator << (const std::string_view& s)
+    {
+        if (!m_ok)
+        {
+            if constexpr (use_exceptions)
+                throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
+            else
+                return *this;
+        }
+
 #if __MSG_USE_TAGS__
         const size_t delta = 2; // terminating '\0' and tag
 #else
@@ -161,7 +212,11 @@ namespace ipc
         const size_t used = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
         const size_t new_used = used + len + delta;
         if (new_used > get_max_size())
+        {
             m_ok = false;
+            if constexpr (use_exceptions)
+                throw_message_overflow_message(__FUNCTION_NAME__, new_used, get_max_size());
+        }
         else
         {
 #if __MSG_USE_TAGS__
@@ -175,8 +230,19 @@ namespace ipc
         return *this;
     }
 
-    out_message& out_message::operator << (const std::pair<const uint8_t*, size_t>& blob)
+    template out_message<true>& out_message<true> ::operator << (const std::string_view& s);
+    template out_message<false>& out_message<false> ::operator << (const std::string_view& s);
+
+    template <bool use_exceptions>
+    out_message<use_exceptions>& out_message<use_exceptions>::operator << (const std::pair<const uint8_t*, size_t>& blob)
     {
+        if (!m_ok)
+        {
+            if constexpr (use_exceptions)
+                throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
+            else
+                return *this;
+    }
 #if __MSG_USE_TAGS__
         const size_t delta = 1;
 #else
@@ -187,7 +253,11 @@ namespace ipc
         const size_t used = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
         const size_t new_used = used + len + delta;
         if (new_used > get_max_size())
+        {
             m_ok = false;
+            if constexpr (use_exceptions)
+                throw_message_overflow_message(__FUNCTION_NAME__, new_used, get_max_size());
+        }
         else
         {
 #if __MSG_USE_TAGS__
@@ -202,7 +272,11 @@ namespace ipc
         return *this;
     }
 
-    out_message& out_message::operator << (const message::remote_ptr& p)
+    template out_message<true>& out_message<true>::operator << (const std::pair<const uint8_t*, size_t>& blob);
+    template out_message<false>& out_message<false>::operator << (const std::pair<const uint8_t*, size_t>& blob);
+
+    template <bool use_exceptions>
+    out_message<use_exceptions>& out_message<use_exceptions>::operator << (const message::remote_ptr& p)
     {
         return push<uint64_t, Tag::remote_ptr>(get_u64_ptr(p));
     }
