@@ -1,5 +1,6 @@
 #include <atomic>
 #include <clocale>
+#include <iostream>
 
 #include <signal.h>
 
@@ -47,7 +48,7 @@ int main()
         const char * link = "foo";
         ipc::unix_server_socket<true> server_socket(std::string{ link });
         
-        printf("server is ready\n");
+        std::cout << "server is ready" << std::endl;
 
         while (!g_stop)
         {
@@ -70,7 +71,7 @@ int main()
             }
             catch(const std::exception& ex)
             {
-                printf("request error >> %s\n", ex.what());
+                std::cout << "request error >> " << ex.what() << std::endl;
             }
         }
     }
@@ -78,11 +79,11 @@ int main()
     {
         if (!g_stop)
         {
-            printf("fatal error >> %s\n", ex.what());
+            std::cout << "fatal error >> " << ex.what() << std::endl;
             return 1;
         }
     } 
 
-    printf("good bye\n");
+    std::cout << "good bye" << std::endl;
     return 0;
 }

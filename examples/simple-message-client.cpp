@@ -1,4 +1,5 @@
 #include <clocale>
+#include <iostream>
 
 #include "../include/ipc.hpp"
 
@@ -24,14 +25,13 @@ int main()
         std::string resp;
         in >> resp;
     
-        printf("%s -> %s\n", req_text, resp.c_str());
+        std::cout << req_text << " -> " << resp;
     
-        client_socket.shutdown(); 
         return 0;
     }
     catch(const std::exception& ex) 
     {
-        printf("error: %s\n", ex.what());
+        std::cout << "error >> " << ex.what() << std::endl;
         return 1;
     }         
 }

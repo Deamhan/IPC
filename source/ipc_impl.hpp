@@ -193,7 +193,7 @@ namespace ipc
     }
     
     template <bool use_exceptions>
-    inline void unix_client_socket<use_exceptions>::shutdown()
+    inline void point_to_point_socket<use_exceptions>::shutdown() noexcept
     {
         ::shutdown(m_socket, SD_SEND);
         m_ok = false;
@@ -374,7 +374,7 @@ namespace ipc
 #if __MSG_USE_TAGS__
             message::tag_t tag = (message::tag_t)m_buffer[m_offset];
             if (expected_tag != tag)
-                return fail_status<use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, tag, expected_tag);
+                return fail_status<use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, to_string(tag), to_string(expected_tag));
 
             ++m_offset;
 #endif // __MSG_USE_TAGS__
@@ -429,7 +429,7 @@ namespace ipc
 #if __MSG_USE_TAGS__
         tag_t tag = (tag_t)m_buffer[m_offset];
         if (tag != tag_t::blob)
-            return fail_status<use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, tag, tag_t::blob);
+            return fail_status<use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, to_string(tag), to_string(tag_t::blob));
 
         ++m_offset;
 #endif // __MSG_USE_TAGS__

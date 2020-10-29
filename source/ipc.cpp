@@ -134,6 +134,13 @@ namespace ipc
         unlink(m_link.c_str());
     }
 
+    template <bool use_exceptions>
+    void point_to_point_socket<use_exceptions>::close() noexcept
+    {
+        shutdown();
+        super::close();
+    }
+
     template void unix_server_socket<true>::close() noexcept;
     template void unix_server_socket<false>::close() noexcept;
 
