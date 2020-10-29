@@ -582,7 +582,9 @@ namespace ipc
         explicit unix_server_socket(T&& path);
         
         ~unix_server_socket();
+        void close() noexcept; ///< closes socket
     protected:
+        typedef server_socket<use_exceptions> super;
         std::string m_link;
     };
 #endif //__AFUNIX_H__

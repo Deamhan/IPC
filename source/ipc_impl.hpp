@@ -70,7 +70,12 @@ namespace ipc
         {
             std::lock_guard<std::mutex> lm(m_lock);
             if (!wait_for<pred, true>(m_socket, predicate))
-                break;
+            {
+                if constexpr (use_exceptions)
+                    throw socket_accept_exception(get_socket_error(), __FUNCTION_NAME__);
+                else
+                    break;
+            }
     
     #ifdef __LINUX__
             p2p_socket = ::accept4(m_socket, nullptr, 0, SOCK_NONBLOCK);
@@ -89,7 +94,7 @@ namespace ipc
                 else
                 {
                     if constexpr (use_exceptions)
-                        throw socket_accept_exception(__FUNCTION_NAME__);
+                        throw socket_accept_exception(err_code, __FUNCTION_NAME__);
                     else
                         break;
                 }
@@ -101,13 +106,13 @@ namespace ipc
         return point_to_point_socket<use_exceptions>(p2p_socket);
     }
     
-    template <bool use_exceptions, typename exception_t, typename text_t>
-    static bool check_status(text_t&& text, bool status) noexcept(!use_exceptions)
+    template <bool use_exceptions, typename exception_t, typename... Args>
+    static bool check_status(bool status, Args&&... args) noexcept(!use_exceptions)
     {
         if (!status)
         {
             if constexpr (use_exceptions)
-                throw exception_t(std::forward<text_t>(text));
+                throw exception_t(std::forward<Args>(args)...);
             else
                 return false;
         }
@@ -115,17 +120,17 @@ namespace ipc
         return true;
     }
 
-    template <bool use_exceptions, typename exception_t, typename string_t>
-    static inline bool update_status(string_t&& text, bool& status, bool new_status) noexcept(use_exceptions)
+    template <bool use_exceptions, typename exception_t, typename... Args>
+    static inline bool update_status(bool& status, bool new_status, Args&&... args) noexcept(!use_exceptions)
     {
         status = new_status;
-        return check_status<use_exceptions, exception_t>(forward<string_t>(text), status);
+        return check_status<use_exceptions, exception_t>(status, std::forward<Args>(args)...);
     }
 
     template<bool use_exceptions> template<typename pred>
     inline bool point_to_point_socket<use_exceptions>::read_message(std::vector<char>& message, const pred& predicate)
     {
-        if (!check_status<use_exceptions, bad_channel_exception>(__FUNCTION_NAME__, m_ok))
+        if (!check_status<use_exceptions, bad_channel_exception>(m_ok, __FUNCTION_NAME__))
             return false;
 
         size_t read = 0;
@@ -133,7 +138,7 @@ namespace ipc
         while (read < std::min<size_t>(message.size(), size))
         {
             if (!wait_for<pred, true>(m_socket, predicate))
-                return update_status<use_exceptions, channel_read_exception>(__FUNCTION_NAME__, m_ok, false);
+                return update_status<use_exceptions, channel_read_exception>(m_ok, false, get_socket_error(), __FUNCTION_NAME__);
     
             int result = recv(m_socket, message.data() + read, message.size() - read, 0);
             if (result < 0)
@@ -143,7 +148,7 @@ namespace ipc
                     continue;
     #endif
 
-                return update_status<use_exceptions, channel_read_exception>(__FUNCTION_NAME__, m_ok, read == size);
+                return update_status<use_exceptions, channel_read_exception>(m_ok, read == size, get_socket_error(), __FUNCTION_NAME__);
             }
             else if (result != 0)
             {
@@ -152,22 +157,22 @@ namespace ipc
                     size = *(__MSG_LENGTH_TYPE__*)message.data();
             }
             else
-                return update_status<use_exceptions, channel_read_exception>(__FUNCTION_NAME__, m_ok, read == size);
+                return update_status<use_exceptions, channel_read_exception>(m_ok, read == size, get_socket_error(), __FUNCTION_NAME__);
         }
     
-        return update_status<use_exceptions, channel_read_exception>(__FUNCTION_NAME__, m_ok, read == size);
+        return update_status<use_exceptions, channel_read_exception>(m_ok, read == size, get_socket_error(), __FUNCTION_NAME__);
     }
     
-    template <bool use_exception> template<typename pred>
-    inline bool point_to_point_socket<use_exception>::write_message(const char* message, const pred& predicate)
+    template <bool use_exceptions> template<typename pred>
+    inline bool point_to_point_socket<use_exceptions>::write_message(const char* message, const pred& predicate)
     {
-        if (!check_status<use_exceptions, bad_channel_exception>(__FUNCTION_NAME__, m_ok))
+        if (!check_status<use_exceptions, bad_channel_exception>(m_ok, __FUNCTION_NAME__))
             return false;
 
         do
         {
             if (!wait_for<pred, false>(m_socket, predicate))
-                return update_status<use_exceptions, channel_write_exception>(__FUNCTION_NAME__, m_ok, false);
+                return update_status<use_exceptions, channel_write_exception>(m_ok, false, get_socket_error(), __FUNCTION_NAME__);
 
             int result = send(m_socket, message, *(const __MSG_LENGTH_TYPE__*)message, 0);
             if (result >= 0)
@@ -182,7 +187,7 @@ namespace ipc
     #endif
                     continue;
     
-                return update_status<use_exceptions, channel_write_exception>(__FUNCTION_NAME__, m_ok, false);
+                return update_status<use_exceptions, channel_write_exception>(m_ok, false, get_socket_error(), __FUNCTION_NAME__);
             }
         } while (true);
     }
@@ -309,7 +314,7 @@ namespace ipc
     template <bool use_exceptions> template <typename T, message::tag_t tag, typename>
     inline out_message<use_exceptions>& out_message<use_exceptions>::push(T arg)
     {
-        if (!check_status<use_exceptions, bad_message_exception>(std::string(__FUNCTION_NAME__) + ": fail flag is set", m_ok))
+        if (!check_status<use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
             return *this;
 
     #if __MSG_USE_TAGS__
@@ -351,7 +356,7 @@ namespace ipc
     template <bool use_exceptions> template <typename T, message::tag_t expected_tag, typename>
     inline in_message<use_exceptions>& in_message<use_exceptions>::pop(T& arg)
     {
-        if (!check_status<use_exceptions, bad_message_exception>(std::string(__FUNCTION_NAME__) + ": fail flag is set", m_ok))
+        if (!check_status<use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
             return *this;
 
 #if __MSG_USE_TAGS__
@@ -409,7 +414,7 @@ namespace ipc
     template <bool use_exceptions> template <size_t N>
     inline in_message<use_exceptions>& in_message<use_exceptions>::operator >> (std::pair<std::array<uint8_t, N>, size_t>& blob)
     {
-        if (!check_status<use_exceptions, bad_message_exception>(std::string(__FUNCTION_NAME__) + ": fail flag is set", m_ok))
+        if (!check_status<use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
             return *this;
 
         __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
