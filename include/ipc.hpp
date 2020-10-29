@@ -84,18 +84,18 @@
 
 namespace ipc
 {
-    class channel_exception : public std::runtime_error
+    class channel_exception : public std::system_error
     {
     protected:
         template <class T>
-        explicit channel_exception(T&& message) : std::runtime_error(std::forward<T>(message)) {}
+        explicit channel_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
     };
 
-    class socket_api_failed_exception : public std::runtime_error
+    class socket_api_failed_exception : public std::system_error
     {
     public:
         template <class T>
-        explicit socket_api_failed_exception(T&& message) : std::runtime_error(std::forward<T>(message)) {}
+        explicit socket_api_failed_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
     };
 
     class bad_channel_exception : public std::logic_error
@@ -151,35 +151,35 @@ namespace ipc
     {
     public:
         template <class T>
-        explicit channel_read_exception(T&& message) : channel_exception(std::forward<T>(message)) {}
+        explicit channel_read_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
     class channel_write_exception : public channel_exception
     {
     public:
         template <class T>
-        explicit channel_write_exception(T&& message) : channel_exception(std::forward<T>(message)) {}
+        explicit channel_write_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
     class passive_socket_exception : public channel_exception
     {
     protected:
         template <class T>
-        explicit passive_socket_exception(T&& message) : channel_exception(std::forward<T>(message)) {}
+        explicit passive_socket_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
     class socket_prepare_exception : public passive_socket_exception
     {
     public:
         template <class T>
-        explicit socket_prepare_exception(T&& message) : passive_socket_exception(std::forward<T>(message)) {}
+        explicit socket_prepare_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
     };
 
     class socket_accept_exception : public passive_socket_exception
     {
     public:
         template <class T>
-        explicit socket_accept_exception(T&& message) : passive_socket_exception(std::forward<T>(message)) {}
+        explicit socket_accept_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
     };
 
     class unknown_message_tag : public std::logic_error

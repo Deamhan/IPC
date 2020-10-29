@@ -42,7 +42,7 @@ namespace ipc
         if constexpr (use_exceptions)
         {
             if (!m_ok)
-                throw socket_api_failed_exception(__FUNCTION_NAME__);
+                throw socket_api_failed_exception(get_socket_error(), __FUNCTION_NAME__);
         }  
     }
 
@@ -78,6 +78,11 @@ namespace ipc
 #endif
     }
 
+    [[noreturn]] static void throw_socket_prepare_exception(int code, std::string&& text)
+    {
+        throw socket_prepare_exception(code, std::move(text));
+    }
+
 #ifdef __AFUNIX_H__
     template <bool use_exceptions> template <typename T, typename>
     unix_server_socket<use_exceptions>::unix_server_socket(T&& socket_link) : m_link(std::forward<T>(socket_link))
@@ -87,7 +92,7 @@ namespace ipc
             m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
             if (INVALID_SOCKET == m_socket)
             {
-                fail_status_without_result<use_exceptions>([]() { throw socket_prepare_exception(std::string(__FUNCTION_NAME__) + ": unable to allocate socket"); }, m_ok);
+                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
                 return;
             }
             sockaddr_un serv_addr;
@@ -96,19 +101,19 @@ namespace ipc
 
             if (!set_non_blocking_mode(m_socket))
             {
-                fail_status_without_result<use_exceptions>([]() { throw socket_prepare_exception(std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode"); }, m_ok);
+                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
                 return;
             }
 
             if (bind(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) != 0)
             {
-                fail_status_without_result<use_exceptions>([]() { throw socket_prepare_exception(std::string(__FUNCTION_NAME__) + ": unable to bind socket"); }, m_ok);
+                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
                 return;
             }
 
             if (listen(m_socket, 100) != 0)
             {
-                fail_status_without_result<use_exceptions>([]() { throw socket_prepare_exception(std::string(__FUNCTION_NAME__) + ": unable to listen socket"); }, m_ok);
+                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
                 return;
             }
         }
