@@ -36,10 +36,10 @@ namespace ipc
 #endif
     }
 
-    template <bool use_exceptions>
-    socket<use_exceptions>::socket(socket_t socket) noexcept(!use_exceptions) : m_ok(init_socket_api()), m_socket(socket)
+    template <bool Use_exceptions>
+    socket<Use_exceptions>::socket(socket_t socket) noexcept(!Use_exceptions) : m_ok(init_socket_api()), m_socket(socket)
     {
-        if constexpr (use_exceptions)
+        if constexpr (Use_exceptions)
         {
             if (!m_ok)
                 throw socket_api_failed_exception(get_socket_error(), __FUNCTION_NAME__);
@@ -49,8 +49,8 @@ namespace ipc
     template socket<false>::socket(socket_t socket) noexcept;
     template socket<true>::socket(socket_t socket);
 
-    template <bool use_exceptions>
-    void socket<use_exceptions>::close() noexcept
+    template <bool Use_exceptions>
+    void socket<Use_exceptions>::close() noexcept
     {
         if (m_socket != INVALID_SOCKET)
         {
@@ -84,15 +84,15 @@ namespace ipc
     }
 
 #ifdef __AFUNIX_H__
-    template <bool use_exceptions> template <typename T, typename>
-    unix_server_socket<use_exceptions>::unix_server_socket(T&& socket_link) : m_link(std::forward<T>(socket_link))
+    template <bool Use_exceptions> template <typename T, typename>
+    unix_server_socket<Use_exceptions>::unix_server_socket(T&& socket_link) : m_link(std::forward<T>(socket_link))
     {
         if (m_ok)
         {
             m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
             if (INVALID_SOCKET == m_socket)
             {
-                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
                 return;
             }
             sockaddr_un serv_addr;
@@ -102,21 +102,21 @@ namespace ipc
             if (!set_non_blocking_mode(m_socket))
             {
                 close();
-                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
                 return;
             }
 
             if (bind(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) != 0)
             {
                 close();
-                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
                 return;
             }
 
             if (listen(m_socket, 100) != 0)
             {
                 close();
-                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
                 return;
             }
         }
@@ -127,15 +127,15 @@ namespace ipc
     template unix_server_socket<false>::unix_server_socket(const std::string&);
     template unix_server_socket<false>::unix_server_socket(std::string&&);
 
-    template <bool use_exceptions>
-    void unix_server_socket<use_exceptions>::close() noexcept
+    template <bool Use_exceptions>
+    void unix_server_socket<Use_exceptions>::close() noexcept
     {
         super::close();
         unlink(m_link.c_str());
     }
 
-    template <bool use_exceptions>
-    void point_to_point_socket<use_exceptions>::close() noexcept
+    template <bool Use_exceptions>
+    void point_to_point_socket<Use_exceptions>::close() noexcept
     {
         shutdown();
         super::close();
@@ -144,8 +144,8 @@ namespace ipc
     template void unix_server_socket<true>::close() noexcept;
     template void unix_server_socket<false>::close() noexcept;
 
-    template <bool use_exceptions>
-    unix_server_socket<use_exceptions>::~unix_server_socket()
+    template <bool Use_exceptions>
+    unix_server_socket<Use_exceptions>::~unix_server_socket()
     {
         close();
     }
@@ -168,15 +168,15 @@ namespace ipc
 #endif
 
 #ifdef __AFUNIX_H__
-    template <bool use_exceptions>
-    unix_client_socket<use_exceptions>::unix_client_socket(const char* path) : point_to_point_socket(INVALID_SOCKET)
+    template <bool Use_exceptions>
+    unix_client_socket<Use_exceptions>::unix_client_socket(const char* path) : point_to_point_socket(INVALID_SOCKET)
     {
         if (m_ok)
         {
             m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
             if (INVALID_SOCKET == m_socket)
             {
-                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
                 return;
             }
             sockaddr_un serv_addr;
@@ -184,7 +184,7 @@ namespace ipc
 
             if (!is_socket_exists(path))
             {
-                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": target does not exist");
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": target does not exist");
                 return;
             }
 
@@ -209,13 +209,13 @@ namespace ipc
 
             if (attempt == max_attempts_count)
             {
-                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
                 return;
             }
 
             if (!set_non_blocking_mode(m_socket))
             {
-                fail_status_without_result<use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
                 return;
             }
         }
@@ -257,27 +257,27 @@ namespace ipc
     }
 
 #ifdef __AFUNIX_H__
-    const char* ipc::message::to_string(tag_t t) noexcept
+    constexpr const char* ipc::message::to_string(type_tag t) noexcept
     {
         switch (t)
         {
-        case ipc::message::tag_t::u32:
+        case ipc::message::type_tag::u32:
             return "u32";
-        case ipc::message::tag_t::i32:
+        case ipc::message::type_tag::i32:
             return "i32";
-        case ipc::message::tag_t::u64:
+        case ipc::message::type_tag::u64:
             return "u64";
-        case ipc::message::tag_t::i64:
+        case ipc::message::type_tag::i64:
             return "i64";
-        case ipc::message::tag_t::fp64:
+        case ipc::message::type_tag::fp64:
             return "fp64";
-        case ipc::message::tag_t::str:
+        case ipc::message::type_tag::str:
             return "str";
-        case ipc::message::tag_t::chr:
+        case ipc::message::type_tag::chr:
             return "chr";
-        case ipc::message::tag_t::remote_ptr:
+        case ipc::message::type_tag::remote_ptr:
             return "remote_ptr";
-        case ipc::message::tag_t::blob:
+        case ipc::message::type_tag::blob:
             return "blob";
         default:
             return "unknown";
@@ -285,10 +285,10 @@ namespace ipc
     }
 #endif // __AFUNIX_H__
 
-    template <bool use_exceptions>
-    out_message<use_exceptions>& out_message<use_exceptions> ::operator << (const std::string_view& s)
+    template <bool Use_exceptions>
+    out_message<Use_exceptions>& out_message<Use_exceptions> ::operator << (const std::string_view& s)
     {
-        if (!check_status<use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
+        if (!check_status<Use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
             return *this;
 
 #if __MSG_USE_TAGS__
@@ -301,11 +301,11 @@ namespace ipc
         const size_t used = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
         const size_t new_used = used + len + delta;
         if (new_used > get_max_size())
-            return fail_status<use_exceptions>(throw_message_overflow_exception, m_ok, *this, __FUNCTION_NAME__, new_used, get_max_size());
+            return fail_status<Use_exceptions>(throw_message_overflow_exception, m_ok, *this, __FUNCTION_NAME__, new_used, get_max_size());
         else
         {
 #if __MSG_USE_TAGS__
-            m_buffer.push_back((char)tag_t::str);
+            m_buffer.push_back((char)type_tag::str);
 #endif // __MSG_USE_TAGS__
             m_buffer.insert(m_buffer.end(), arg, arg + len);
             m_buffer.push_back('\0'); // string_view is not necessarily null terminated, so we set it explicitly
@@ -318,10 +318,10 @@ namespace ipc
     template out_message<true>& out_message<true> ::operator << (const std::string_view& s);
     template out_message<false>& out_message<false> ::operator << (const std::string_view& s);
 
-    template <bool use_exceptions>
-    out_message<use_exceptions>& out_message<use_exceptions>::operator << (const std::pair<const uint8_t*, size_t>& blob)
+    template <bool Use_exceptions>
+    out_message<Use_exceptions>& out_message<Use_exceptions>::operator << (const std::pair<const uint8_t*, size_t>& blob)
     {
-        if (!check_status<use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
+        if (!check_status<Use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
             return *this;
 
 #if __MSG_USE_TAGS__
@@ -334,11 +334,11 @@ namespace ipc
         const size_t used = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
         const size_t new_used = used + len + delta;
         if (new_used > get_max_size())
-            return fail_status<use_exceptions>(throw_message_overflow_exception, m_ok, *this, __FUNCTION_NAME__, new_used, get_max_size());
+            return fail_status<Use_exceptions>(throw_message_overflow_exception, m_ok, *this, __FUNCTION_NAME__, new_used, get_max_size());
         else
         {
 #if __MSG_USE_TAGS__
-            m_buffer.push_back((char)tag_t::blob);
+            m_buffer.push_back((char)type_tag::blob);
 #endif // __MSG_USE_TAGS__
             const __MSG_LENGTH_TYPE__ blob_len = (__MSG_LENGTH_TYPE__)len;
             m_buffer.insert(m_buffer.end(), (const char*)&blob_len, (const char*)(&blob_len + 1));
@@ -352,10 +352,10 @@ namespace ipc
     template out_message<true>& out_message<true>::operator << (const std::pair<const uint8_t*, size_t>& blob);
     template out_message<false>& out_message<false>::operator << (const std::pair<const uint8_t*, size_t>& blob);
 
-    template <bool use_exceptions>
-    in_message<use_exceptions>& in_message<use_exceptions>::operator >> (std::string& arg)
+    template <bool Use_exceptions>
+    in_message<Use_exceptions>& in_message<Use_exceptions>::operator >> (std::string& arg)
     {
-        if (!check_status<use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
+        if (!check_status<Use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
             return *this;
 
         arg.clear();
@@ -366,12 +366,12 @@ namespace ipc
         const size_t delta = 1; /*termination '\0' only*/
 #endif // __MSG_USE_TAGS__
         if (size < m_offset + delta)
-            return fail_status<use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + delta, size);
+            return fail_status<Use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + delta, size);
 
 #if __MSG_USE_TAGS__
-        tag_t tag = (tag_t)m_buffer[m_offset];
-        if (tag != tag_t::str)
-            return fail_status<use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, to_string(tag), to_string(tag_t::str));
+        type_tag tag = (type_tag)m_buffer[m_offset];
+        if (tag != type_tag::str)
+            return fail_status<Use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, to_string(tag), to_string(type_tag::str));
 
         ++m_offset;
 #endif // __MSG_USE_TAGS__
@@ -381,7 +381,7 @@ namespace ipc
         if (end == nullptr)
         {
             m_ok = false;
-            if constexpr (use_exceptions)
+            if constexpr (Use_exceptions)
             {
                 std::string msg(__FUNCTION_NAME__);
                 msg.append(": terminating zero not found");
@@ -400,10 +400,10 @@ namespace ipc
     template in_message<true>& in_message<true>::operator >> (std::string& arg);
     template in_message<false>& in_message<false>::operator >> (std::string& arg);
 
-    template <bool use_exceptions>
-    in_message<use_exceptions>& in_message<use_exceptions>::operator >> (std::vector<uint8_t>& blob)
+    template <bool Use_exceptions>
+    in_message<Use_exceptions>& in_message<Use_exceptions>::operator >> (std::vector<uint8_t>& blob)
     {
-        if (!check_status<use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
+        if (!check_status<Use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
             return *this;
 
         __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
@@ -413,12 +413,12 @@ namespace ipc
         const size_t delta = sizeof(__MSG_LENGTH_TYPE__);
 #endif // __MSG_USE_TAGS__
         if (size < m_offset + delta)
-            return fail_status<use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + delta, size);
+            return fail_status<Use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + delta, size);
 
 #if __MSG_USE_TAGS__
-        tag_t tag = (tag_t)m_buffer[m_offset];
-        if (tag != tag_t::blob)
-            return fail_status<use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, to_string(tag), to_string(tag_t::blob));
+        type_tag tag = (type_tag)m_buffer[m_offset];
+        if (tag != type_tag::blob)
+            return fail_status<Use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, to_string(tag), to_string(type_tag::blob));
 
         ++m_offset;
 #endif // __MSG_USE_TAGS__
@@ -427,7 +427,7 @@ namespace ipc
         m_offset += sizeof(__MSG_LENGTH_TYPE__);
 
         if (size < m_offset + blob_len)
-            return fail_status<use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + blob_len, size);
+            return fail_status<Use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + blob_len, size);
 
         if (blob_len != 0)
         {

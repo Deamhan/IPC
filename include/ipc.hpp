@@ -192,7 +192,7 @@ namespace ipc
     /**
      * \brief Base class for all sockets hierarchy.
      */
-    template <bool use_exceptions>
+    template <bool Use_exceptions>
     class socket
     {
     public:
@@ -205,7 +205,7 @@ namespace ipc
     protected:
         bool m_ok;
         socket_t m_socket;
-        explicit socket(socket_t socket) noexcept(!use_exceptions);
+        explicit socket(socket_t socket) noexcept(!Use_exceptions);
     };
 
     /**
@@ -260,7 +260,7 @@ namespace ipc
          *
          * More complicated types can be built from this primitives. Unused if __MSG_USE_TAGS__ is 0.
          */
-        enum class tag_t : uint8_t
+        enum class type_tag : uint8_t
         {
             u32 = 0,
             i32,
@@ -274,7 +274,7 @@ namespace ipc
         };
 
 #ifdef __AFUNIX_H__
-        const char* to_string(tag_t t) noexcept;
+        constexpr const char* to_string(type_tag t) noexcept;
 #endif //_AFUNIX_H__
 
         bool m_ok;
@@ -299,9 +299,9 @@ namespace ipc
      * This class serializes user's data to its internal buffer which max size is __MSG_MAX_LENGTH__.
      * Filled message should be passed to PointToPointSocket::write_message function.
      *
-     * \tparam use_exceptions throw exception on error in addition to set fail status
+     * \tparam Use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool use_exceptions>
+    template <bool Use_exceptions>
     class out_message : public message
     {
     public:
@@ -322,7 +322,7 @@ namespace ipc
          * \brief Serializes user's pointer to internal buffer.
          * \param p - pointer to serialize.
          */
-        out_message& operator << (const remote_ptr& p) { return push<uint64_t, tag_t::remote_ptr>(get_u64_ptr(p)); }
+        out_message& operator << (const remote_ptr& p) { return push<uint64_t, type_tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Serializes user's blob to internal buffer.
@@ -343,7 +343,7 @@ namespace ipc
         const std::vector<char>& get_data() const noexcept { return m_buffer; }
         
     protected:
-        template <typename T, tag_t tag, typename = std::enable_if_t<trivial_type<T>::value>>
+        template <typename T, type_tag Tag, typename = std::enable_if_t<trivial_type<T>::value>>
         out_message& push(T arg);
         
         std::vector<char> m_buffer;
@@ -355,9 +355,9 @@ namespace ipc
      * This class deserializes user data from its internal buffer which max size is __MSG_MAX_LENGTH__.
      * Empty message should be filled by PointToPointSocket::read_message function first.
      * 
-     * \tparam use_exceptions throw exception on error in addition to set fail status
+     * \tparam Use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool use_exceptions>
+    template <bool Use_exceptions>
     class in_message : public message
     {
     public:
@@ -378,7 +378,7 @@ namespace ipc
          * \brief Deserializes remote pointer from internal buffer.
          * \param arg - extracted data.
          */
-        in_message& operator >> (remote_ptr& p) { return pop<uint64_t, tag_t::remote_ptr>(get_u64_ptr(p)); }
+        in_message& operator >> (remote_ptr& p) { return pop<uint64_t, type_tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Deserializes blob from internal buffer.
@@ -406,14 +406,14 @@ namespace ipc
         std::vector<char>& get_data() noexcept { return m_buffer; }
 
     protected:
-        template <typename T, tag_t tag, typename = std::enable_if_t<trivial_type<T>::value>>
+        template <typename T, type_tag Tag, typename = std::enable_if_t<trivial_type<T>::value>>
         in_message& pop(T& arg);
 
         std::vector<char> m_buffer;
         size_t m_offset;
     };
 
-    template <bool use_exceptions>
+    template <bool Use_exceptions>
     class server_socket;
 
     /**
@@ -422,10 +422,10 @@ namespace ipc
      * This class allows pair of applications to send and receive data between each other. Instance cannot be created directly:
      * it can be obtained as result of ServerSocket::accept (received instance will represent server side of data channel).
      * 
-     * \tparam use_exceptions throw exception on error in addition to set fail status
+     * \tparam Use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool use_exceptions>
-    class point_to_point_socket : public socket<use_exceptions>
+    template <bool Use_exceptions>
+    class point_to_point_socket : public socket<Use_exceptions>
     {
     public:
         /**
@@ -438,8 +438,8 @@ namespace ipc
          * \param predicate function of type bool() or similar callable object 
          * \return true if message has been read successfully.
          */
-        template<typename pred>
-        bool read_message(std::vector<char>& message, const pred& predicate);
+        template<typename Predicate>
+        bool read_message(std::vector<char>& message, const Predicate& predicate);
 
         /**
          * \brief Reads message from channel.
@@ -451,8 +451,8 @@ namespace ipc
          * \param predicate function of type bool() or similar callable object 
          * \return true if message has been read successfully.
          */
-        template<typename pred>
-        bool read_message(in_message<use_exceptions>& message, const pred& predicate);
+        template<typename Predicate>
+        bool read_message(in_message<Use_exceptions>& message, const Predicate& predicate);
 
         /**
           * \brief Writes raw message to channel. Use it only if you really need raw message form.
@@ -467,8 +467,8 @@ namespace ipc
           * \param predicate function of type bool() or similar callable object 
           * \return true if message writing has been started successfully
           */
-        template<typename pred>
-        bool write_message(const char * message, const pred& predicate);
+        template<typename Predicate>
+        bool write_message(const char * message, const Predicate& predicate);
 
         /**
           * \brief Writes message to channel.
@@ -483,8 +483,8 @@ namespace ipc
           * \param predicate function of type bool() or similar callable object 
           * \return true if message writing has been started successfully
           */
-        template<typename pred>
-        bool write_message(out_message<use_exceptions>& message, const pred& predicate) { return write_message(message.get_data().data(), predicate); }
+        template<typename Predicate>
+        bool write_message(out_message<Use_exceptions>& message, const Predicate& predicate) { return write_message(message.get_data().data(), predicate); }
 
         /**
           * \brief Waits for shutdown signal.
@@ -496,8 +496,8 @@ namespace ipc
           *
           * \sa #shutdown.
           */
-        template<typename pred>
-        void wait_for_shutdown(const pred& predicate);
+        template<typename Predicate>
+        void wait_for_shutdown(const Predicate& predicate);
 
         /**
           * \brief Sends shutdown signal.
@@ -510,23 +510,23 @@ namespace ipc
 
         ~point_to_point_socket() { close(); }
     protected:
-        typedef socket<use_exceptions> super;
+        typedef socket<Use_exceptions> super;
 
         explicit point_to_point_socket(socket_t socket) : socket(socket) {}
 
-        friend class server_socket<use_exceptions>;
+        friend class server_socket<Use_exceptions>;
     };
 
 #ifdef __AFUNIX_H__
     /**
      * \brief Client side of bidirectional data channel based on UNIX sockets.
      *
-     * \tparam use_exceptions throw exception on error in addition to set fail status
+     * \tparam Use_exceptions throw exception on error in addition to set fail status
      * 
      * \warning Unix sockets available on Windows only since Windows 10 build 17063
      */
-    template <bool use_exceptions>
-    class unix_client_socket : public point_to_point_socket<use_exceptions>
+    template <bool Use_exceptions>
+    class unix_client_socket : public point_to_point_socket<Use_exceptions>
     {
     public:
         /**
@@ -541,10 +541,10 @@ namespace ipc
     /**
      * \brief Common passive (listening) socket. Helper class only.
      * 
-     * \tparam use_exceptions throw exception on error in addition to set fail status
+     * \tparam Use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool use_exceptions>
-    class server_socket : public socket<use_exceptions>
+    template <bool Use_exceptions>
+    class server_socket : public socket<Use_exceptions>
     {
     public:
         /**
@@ -557,8 +557,8 @@ namespace ipc
          * \param predicate function of type bool() or similar callable object 
          * \return socket for data exchnge
          */
-        template<typename pred>
-        point_to_point_socket<use_exceptions> accept(const pred& predicate);
+        template<typename Predicate>
+        point_to_point_socket<Use_exceptions> accept(const Predicate& predicate);
     protected:
         server_socket() noexcept : socket(INVALID_SOCKET) {}
 
@@ -569,12 +569,12 @@ namespace ipc
    /**
      * \brief Unix passive (listening) socket.
      *
-     * \tparam use_exceptions throw exception on error in addition to set fail status
+     * \tparam Use_exceptions throw exception on error in addition to set fail status
      * 
      * \warning Unix sockets available on Windows only since Windows 10 build 17063
      */
-    template <bool use_exceptions>
-    class unix_server_socket : public server_socket<use_exceptions>
+    template <bool Use_exceptions>
+    class unix_server_socket : public server_socket<Use_exceptions>
     {
     public:
         /**
@@ -588,7 +588,7 @@ namespace ipc
         ~unix_server_socket();
         void close() noexcept; ///< closes socket
     protected:
-        typedef server_socket<use_exceptions> super;
+        typedef server_socket<Use_exceptions> super;
         std::string m_link;
     };
 #endif //__AFUNIX_H__

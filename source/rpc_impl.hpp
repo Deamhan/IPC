@@ -16,19 +16,19 @@
 
 namespace ipc
 {
-    template <typename dispatcher_t, typename predicate_t>
-    inline void rpc_server::run(const dispatcher_t& dispatcher, const predicate_t& predicate)
+    template <typename Dispatcher, typename Predicate>
+    inline void rpc_server::run(const Dispatcher& dispatcher, const Predicate& predicate)
     {
         std::vector<std::thread> workers(std::thread::hardware_concurrency());
         for (auto& worker : workers)
-            worker = std::thread(&rpc_server::thread_proc<dispatcher_t, predicate_t>, this, &dispatcher, &predicate);
+            worker = std::thread(&rpc_server::thread_proc<Dispatcher, Predicate>, this, &dispatcher, &predicate);
     
         for (auto& worker : workers)
             worker.join();
     }
     
-    template <typename dispatcher_t, typename predicate_t>
-    inline void rpc_server::thread_proc(const dispatcher_t* d, const predicate_t* predicate)
+    template <typename Dispatcher, typename Predicate>
+    inline void rpc_server::thread_proc(const Dispatcher* d, const Predicate* predicate)
     {
         in_message<true> in_msg;
         out_message<true> out_msg;
@@ -60,29 +60,29 @@ namespace ipc
             (msg >> ... >> std::get<I>(t));
     }
     
-    template <bool use_done_tag, typename R, typename... Args> template <typename func_t>
-    inline void function_invoker<R(Args...), use_done_tag>::operator()(in_message<true>& in_msg, out_message<true>& out_msg, func_t&& func)
+    template <bool Use_done_tag, typename R, typename... Args> template <typename Func>
+    inline void function_invoker<R(Args...), Use_done_tag>::operator()(in_message<true>& in_msg, out_message<true>& out_msg, Func&& func)
     {
         std::tuple<std::remove_reference_t<std::remove_cv_t<Args>>...> args;
         input_tuple(in_msg, args, std::make_index_sequence<sizeof...(Args)>{});
         out_msg.clear();
         if constexpr (!std::is_same_v<R, void>)
         {
-            R result = std::apply(std::forward<func_t>(func), std::move(args));
-            if constexpr (use_done_tag)
+            R result = std::apply(std::forward<Func>(func), std::move(args));
+            if constexpr (Use_done_tag)
                 out_msg << done_tag;
             out_msg << result;
         }
         else
         {
-            std::apply(std::forward<func_t>(func), std::move(args));
-            if constexpr (use_done_tag)
+            std::apply(std::forward<Func>(func), std::move(args));
+            if constexpr (Use_done_tag)
                 out_msg << done_tag;
         }
     }
     
-    template <uint32_t id, typename R, typename dispatcher_t, typename predicate_t, typename... Args>
-    inline R service_invoker::call_by_link(const char* link, dispatcher_t& dispatcher, const predicate_t& pred, const Args&... args)
+    template <uint32_t id, typename R, typename Dispatcher, typename Predicate, typename... Args>
+    inline R service_invoker::call_by_link(const char* link, Dispatcher& dispatcher, const Predicate& pred, const Args&... args)
     {
         ipc::unix_client_socket<true> client_socket(link);
     
@@ -116,8 +116,8 @@ namespace ipc
         }
     }
     
-    template <uint32_t id, typename R, typename predicate_t, typename... Args>
-    R service_invoker::call_by_channel(point_to_point_socket<true>& socket, in_message<true>& in_msg, out_message<true>& out_msg, const predicate_t& pred, const Args&... args)
+    template <uint32_t id, typename R, typename Predicate, typename... Args>
+    R service_invoker::call_by_channel(point_to_point_socket<true>& socket, in_message<true>& in_msg, out_message<true>& out_msg, const Predicate& pred, const Args&... args)
     {
         try
         {
