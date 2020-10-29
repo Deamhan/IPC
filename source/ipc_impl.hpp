@@ -62,8 +62,8 @@ namespace ipc
     static inline int get_socket_error() noexcept { return errno; }
     #endif
     
-    template<typename pred>
-    inline point_to_point_socket<false> server_socket::accept(const pred& predicate)
+    template <bool use_exceptions> template<typename pred>
+    inline point_to_point_socket<use_exceptions> server_socket<use_exceptions>::accept(const pred& predicate)
     {
         socket_t p2p_socket = INVALID_SOCKET;
         do
@@ -87,22 +87,27 @@ namespace ipc
     #endif
                     continue;
                 else
-                    break;
+                {
+                    if constexpr (use_exceptions)
+                        throw socket_accept_exception(__FUNCTION_NAME__);
+                    else
+                        break;
+                }
             }
             else
                 break;
         } while (true);
     
-        return point_to_point_socket<false>(p2p_socket);
+        return point_to_point_socket<use_exceptions>(p2p_socket);
     }
     
-    template <bool use_exceptions, typename exception_t>
-    static bool check_status(const char* func, bool status) noexcept(use_exceptions)
+    template <bool use_exceptions, typename exception_t, typename text_t>
+    static bool check_status(text_t&& text, bool status) noexcept(!use_exceptions)
     {
         if (!status)
         {
             if constexpr (use_exceptions)
-                throw exception_t(func);
+                throw exception_t(std::forward<text_t>(text));
             else
                 return false;
         }
@@ -110,11 +115,11 @@ namespace ipc
         return true;
     }
 
-    template <bool use_exceptions, typename exception_t>
-    static inline bool update_status(const char* func, bool& status, bool new_status) noexcept(use_exceptions)
+    template <bool use_exceptions, typename exception_t, typename string_t>
+    static inline bool update_status(string_t&& text, bool& status, bool new_status) noexcept(use_exceptions)
     {
         status = new_status;
-        return check_status<use_exceptions, exception_t>(func, status);
+        return check_status<use_exceptions, exception_t>(forward<string_t>(text), status);
     }
 
     template<bool use_exceptions> template<typename pred>
@@ -182,65 +187,66 @@ namespace ipc
         } while (true);
     }
     
-    inline void unix_client_socket::shutdown()
+    template <bool use_exceptions>
+    inline void unix_client_socket<use_exceptions>::shutdown()
     {
         ::shutdown(m_socket, SD_SEND);
         m_ok = false;
     }
 
     template <>
-    struct message::TagTraits<uint32_t>
+    struct message::tag_traits<uint32_t>
     {
-        static const message::Tag value = message::Tag::u32;
+        static const message::tag_t value = message::tag_t::u32;
     };
     
     template <>
-    struct message::TagTraits<int32_t>
+    struct message::tag_traits<int32_t>
     {
-        static const message::Tag value = message::Tag::i32;
+        static const message::tag_t value = message::tag_t::i32;
     };
     
     template <>
-    struct message::TagTraits<int64_t>
+    struct message::tag_traits<int64_t>
     {
-        static const message::Tag value = message::Tag::i64;
+        static const message::tag_t value = message::tag_t::i64;
     };
     
     template <>
-    struct message::TagTraits<uint64_t>
+    struct message::tag_traits<uint64_t>
     {
-        static const message::Tag value = message::Tag::u64;
+        static const message::tag_t value = message::tag_t::u64;
     };
     
     template <>
-    struct message::TagTraits<double>
+    struct message::tag_traits<double>
     {
-        static const message::Tag value = message::Tag::fp64;
+        static const message::tag_t value = message::tag_t::fp64;
     };
     
     
     template <>
-    struct message::TagTraits<const char*>
+    struct message::tag_traits<const char*>
     {
-        static const message::Tag value = message::Tag::str;
+        static const message::tag_t value = message::tag_t::str;
     };
     
     template <>
-    struct message::TagTraits<std::string>
+    struct message::tag_traits<std::string>
     {
-        static const message::Tag value = message::Tag::str;
+        static const message::tag_t value = message::tag_t::str;
     };
     
     template <>
-    struct message::TagTraits<char>
+    struct message::tag_traits<char>
     {
-        static const message::Tag value = message::Tag::chr;
+        static const message::tag_t value = message::tag_t::chr;
     };
     
     template <>
-    struct message::TagTraits<message::remote_ptr>
+    struct message::tag_traits<message::remote_ptr>
     {
-        static const message::Tag value = message::Tag::remote_ptr;
+        static const message::tag_t value = message::tag_t::remote_ptr;
     };
     
     template <>
@@ -284,16 +290,27 @@ namespace ipc
     [[noreturn]] void throw_message_too_short_exception(const char* func_name, size_t req_size, size_t total_size);
     [[noreturn]] void throw_container_overflow_exception(const char* func_name, size_t req_size, size_t total_size);
 
-    template <bool use_exceptions> template <typename T, message::Tag TAG, typename>
+    template<bool use_exceptions, typename callable_t, typename... Args>
+    static void fail_status_without_result(callable_t& c, bool& status, Args&&... args) noexcept(!use_exceptions)
+    {
+        status = false;
+        if constexpr (use_exceptions)
+            c(std::forward<Args>(args)...);
+    }
+
+    template<bool use_exceptions, typename callable_t, typename return_value_t, typename... Args>
+    static return_value_t& fail_status(callable_t& c, bool& status, return_value_t& result, Args&&... args) noexcept(!use_exceptions)
+    {
+        fail_status_without_result<use_exceptions>(c, status, std::forward<Args>(args)...);
+
+        return result;
+    }
+
+    template <bool use_exceptions> template <typename T, message::tag_t tag, typename>
     inline out_message<use_exceptions>& out_message<use_exceptions>::push(T arg)
     {
-        if (!m_ok)
-        {
-            if constexpr (use_exceptions)
-                throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
-            else
-                return *this;
-        }
+        if (!check_status<use_exceptions, bad_message_exception>(std::string(__FUNCTION_NAME__) + ": fail flag is set", m_ok))
+            return *this;
 
     #if __MSG_USE_TAGS__
         const size_t delta = 1;
@@ -303,16 +320,10 @@ namespace ipc
         size_t used = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
         size_t new_used = used + sizeof(T) + delta;
         if (new_used > get_max_size())
-        {
-            m_ok = false;
-            if constexpr (use_exceptions)
-                throw_message_overflow_message(__FUNCTION_NAME__, new_used, get_max_size());
-            else
-                return *this;
-        }
+            return fail_status<use_exceptions>(throw_message_overflow_exception, m_ok, *this, __FUNCTION_NAME__, new_used, get_max_size());
     
     #if __MSG_USE_TAGS__
-        m_buffer.push_back((char)TAG);
+        m_buffer.push_back((char)tag);
     #endif // __MSG_USE_TAGS__
         const char* data = (const char*)&arg;
         m_buffer.insert(m_buffer.end(), data, data + sizeof(T));
@@ -337,16 +348,11 @@ namespace ipc
         m_offset = sizeof(__MSG_LENGTH_TYPE__);
     }
     
-    template <bool use_exceptions> template <typename T, message::Tag TAG, typename>
+    template <bool use_exceptions> template <typename T, message::tag_t expected_tag, typename>
     inline in_message<use_exceptions>& in_message<use_exceptions>::pop(T& arg)
     {
-        if (!m_ok)
-        {
-            if constexpr (use_exceptions)
-                throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
-            else
-                return *this;
-        }
+        if (!check_status<use_exceptions, bad_message_exception>(std::string(__FUNCTION_NAME__) + ": fail flag is set", m_ok))
+            return *this;
 
 #if __MSG_USE_TAGS__
         const size_t delta = 1;
@@ -357,23 +363,14 @@ namespace ipc
         const size_t size = *(const __MSG_LENGTH_TYPE__*)m_buffer.data();
         size_t new_offset = m_offset + sizeof(T) + delta;
         if (size < new_offset)
-        {
-            m_ok = false;
-            if constexpr (use_exceptions)
-                throw_message_format_exception(__FUNCTION_NAME__, new_offset, size);
-        }   
+            return fail_status<use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, new_offset, size);
         else
         {
 #if __MSG_USE_TAGS__
-            message::Tag tag = (message::Tag)m_buffer[m_offset];
-            if (tag != TAG)
-            {
-                m_ok = false;
-                if constexpr (use_exceptions)
-                    throw_type_mismatch_exception(__FUNCTION_NAME__, tag, TAG);
-                else
-                    return *this;
-            }
+            message::tag_t tag = (message::tag_t)m_buffer[m_offset];
+            if (expected_tag != tag)
+                return fail_status<use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, tag, expected_tag);
+
             ++m_offset;
 #endif // __MSG_USE_TAGS__
             arg = *(T*)&m_buffer[m_offset];
@@ -384,36 +381,36 @@ namespace ipc
     }
     
     template <bool use_exceptions> template<typename pred>
-    inline bool point_to_point_socket<use_exceptions>::read_message(in_message<false>& message, const pred& predicate)
+    inline bool point_to_point_socket<use_exceptions>::read_message(in_message<use_exceptions>& message, const pred& predicate)
     {
         message.clear();
-        return read_message(message.get_data(), predicate);
-    }
-    
-    inline void socket::close() noexcept
-    {
-        if (m_socket != INVALID_SOCKET)
+        if constexpr (use_exceptions)
         {
-    #ifdef _WIN32
-            closesocket(m_socket);
-    #else
-            ::close(m_socket);
-    #endif
-            m_socket = INVALID_SOCKET;
-            m_ok = false;
+            try
+            {
+                return read_message(message.get_data(), predicate);
+            }
+            catch (...)
+            {
+                message.clear();
+                throw;
+            }
+        }
+        else
+        {
+            bool result = read_message(message.get_data(), predicate);
+            if (!result)
+                message.clear();
+
+            return result;
         }
     }
     
     template <bool use_exceptions> template <size_t N>
     inline in_message<use_exceptions>& in_message<use_exceptions>::operator >> (std::pair<std::array<uint8_t, N>, size_t>& blob)
     {
-        if (!m_ok)
-        {
-            if constexpr (use_exceptions)
-                throw bad_message_exception(std::string(__FUNCTION_NAME__) + ": fail flag is set");
-            else
-                return *this;
-        }
+        if (!check_status<use_exceptions, bad_message_exception>(std::string(__FUNCTION_NAME__) + ": fail flag is set", m_ok))
+            return *this;
 
         __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
 #if __MSG_USE_TAGS__
@@ -422,24 +419,13 @@ namespace ipc
         const size_t delta = sizeof(__MSG_LENGTH_TYPE__);
 #endif // __MSG_USE_TAGS__
         if (size < m_offset + delta)
-        {
-            m_ok = false;
-            if constexpr (use_exceptions)
-                throw_message_format_exception(__FUNCTION_NAME__, m_offset + delta, size);
-            else
-                return *this;
-        }
+            return fail_status<use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + delta, size);
 
 #if __MSG_USE_TAGS__
-        Tag tag = (Tag)m_buffer[m_offset];
-        if (tag != Tag::blob)
-        {
-            m_ok = false;
-            if constexpr (use_exceptions)
-                throw_type_mismatch_exception(__FUNCTION_NAME__, tag, TAG);
-            else
-                return *this;
-        }
+        tag_t tag = (tag_t)m_buffer[m_offset];
+        if (tag != tag_t::blob)
+            return fail_status<use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, tag, tag_t::blob);
+
         ++m_offset;
 #endif // __MSG_USE_TAGS__
 
@@ -447,22 +433,10 @@ namespace ipc
         m_offset += sizeof(__MSG_LENGTH_TYPE__);
 
         if (size < m_offset + blob_len)
-        {
-            m_ok = false;
-            if constexpr (use_exceptions)
-                throw_message_format_exception(__FUNCTION_NAME__, m_offset + blob_len, size);
-            else
-                return *this;
-        }
+            return fail_status<use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + blob_len, size);
 
         if (blob_len > N)
-        {
-            m_ok = false;
-            if constexpr (use_exceptions)
-                throw_container_overflow_exception(__FUNCTION_NAME__, blob_len, N);
-            else
-                return *this;
-        }
+            return fail_status<use_exceptions>(throw_container_overflow_exception, m_ok, *this, __FUNCTION_NAME__, blob_len, N);
 
         if (blob_len != 0)
         {
