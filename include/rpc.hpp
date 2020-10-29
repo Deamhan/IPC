@@ -11,7 +11,7 @@
 
 #include  <thread>
 
-#include "ipc.h"
+#include "ipc.hpp"
 
 namespace ipc
 {
@@ -30,36 +30,33 @@ namespace ipc
     class function_invoker<R(Args...), use_done_tag> : public function_invoker_base
     {
     public:
-        template <typename Func>
-        void operator()(in_message& in_msg, out_message& out_msg, Func&& func);
+        template <typename func_t>
+        void operator()(in_message<true>& in_msg, out_message<true>& out_msg, func_t&& func);
     };
 
     class service_invoker
     {
     public:
-        template <uint32_t id, typename R, typename Dispatcher, typename Predicate, typename... Args>
-        R call_by_link(const char * link, Dispatcher&& dispatcher, const Predicate& pred, const Args&... args);
+        template <uint32_t id, typename R, typename dispatcher_t, typename predicate_t, typename... Args>
+        R call_by_link(const char * link, dispatcher_t& dispatcher, const predicate_t& pred, const Args&... args);
 
-        template <uint32_t id, typename R, typename Predicate, typename... Args>
-        R call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& pred, const Args&... args);
+        template <uint32_t id, typename R, typename predicate_t, typename... Args>
+        R call_by_channel(point_to_point_socket<true>& socket, in_message<true>& in_msg, out_message<true>& out_msg, const predicate_t& pred, const Args&... args);
     };
 
     class rpc_server
     {
     public:
-        rpc_server(std::string_view path) : m_server_socket(std::string(path)), m_ok(m_server_socket.is_ok()) {}
+        rpc_server(std::string_view path) : m_server_socket(std::string(path)) {}
 
-        template <typename Dispatcher, typename pred>
-        void run(const Dispatcher& dispatcher, const pred& predicate);
-
-        bool is_ok() const noexcept { return m_ok; }
+        template <typename dispatcher_t, typename predicate_t>
+        void run(const dispatcher_t& dispatcher, const predicate_t& predicate);
 
     protected:
-        unix_server_socket m_server_socket;
-        bool m_ok;
+        unix_server_socket<true> m_server_socket;
 
-        template <typename Dispatcher, typename pred>
-        void thread_proc(const Dispatcher* d, const pred* predicate);
+        template <typename dispatcher_t, typename predicate_t>
+        void thread_proc(const dispatcher_t* d, const predicate_t* predicate);
     };
 }
 

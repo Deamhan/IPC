@@ -322,7 +322,7 @@ namespace ipc
          * \brief Serializes user's pointer to internal buffer.
          * \param p - pointer to serialize.
          */
-        out_message& operator << (const remote_ptr& p) { return push<uint64_t, Tag::remote_ptr>(get_u64_ptr(p)); }
+        out_message& operator << (const remote_ptr& p) { return push<uint64_t, tag_t::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Serializes user's blob to internal buffer.
@@ -378,7 +378,7 @@ namespace ipc
          * \brief Deserializes remote pointer from internal buffer.
          * \param arg - extracted data.
          */
-        in_message& operator >> (remote_ptr& p) { return pop<uint64_t, Tag::remote_ptr>(get_u64_ptr(p)); }
+        in_message& operator >> (remote_ptr& p) { return pop<uint64_t, tag_t::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Deserializes blob from internal buffer.
@@ -494,13 +494,24 @@ namespace ipc
           *
           * \param predicate function of type bool() or similar callable object 
           *
-          * \sa ipc::UnixClientSocket::shutdown.
+          * \sa #shutdown.
           */
         template<typename pred>
         void wait_for_shutdown(const pred& predicate);
 
+        /**
+          * \brief Sends shutdown signal.
+          *
+          * \sa #wait_for_shutdown.
+          */
+        void shutdown() noexcept;
+
+        void close() noexcept;
+
         ~point_to_point_socket() { close(); }
     protected:
+        typedef socket<use_exceptions> super;
+
         explicit point_to_point_socket(socket_t socket) : socket(socket) {}
 
         friend class server_socket<use_exceptions>;
@@ -524,13 +535,6 @@ namespace ipc
           * \param path UNIX socket path
           */
         explicit unix_client_socket(const char* path);
-
-        /**
-          * \brief Sends shutdown signal.
-          *          
-          * \sa ipc::PointToPointSocket::wait_for_shutdown.
-          */
-        void shutdown();
     };
 #endif //__AFUNIX_H__
 
