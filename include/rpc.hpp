@@ -18,7 +18,7 @@ namespace ipc
     class function_invoker_base
     {
     public:
-        static const uint32_t done_tag = 0xFFFFFFFF;
+        static const uint32_t done_tag = 0xFFFFFFFFu;
     protected:
         function_invoker_base() = default;
     };
