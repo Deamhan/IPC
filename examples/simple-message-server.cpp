@@ -43,58 +43,66 @@ static void ctrlBreakHandler(int /*signum*/) noexcept
 
 static void process_request(ipc::unix_server_socket<true> * server_socket)
 {
-    while (!g_stop)
+    try
     {
-        auto predicate = []() { return !g_stop; };
-        auto p2p = server_socket->accept(predicate);
-
-        try
+        while (!g_stop)
         {
-            ipc::in_message<true> in;
-            ipc::out_message<true> out;
-            p2p.read_message(in, predicate);
+            auto predicate = []() { return !g_stop; };
+            auto p2p = server_socket->accept(predicate);
 
-            uint32_t code;
-            in >> code;
-            switch ((simple_server_function_t)code)
+            try
             {
-            case simple_server_function_t::add_with_callbacks:
-            {
-                ipc::message::remote_ptr p;
-                in >> p;
-                int32_t args[2] = {};
-                uint32_t codes[2] = { (uint32_t)simple_client_function_t::arg1, (uint32_t)simple_client_function_t::arg2 };
-                for (size_t i = 0; i < sizeof(args) / sizeof(args[0]); ++i)
+                ipc::in_message<true> in;
+                ipc::out_message<true> out;
+                p2p.read_message(in, predicate);
+
+                uint32_t code;
+                in >> code;
+                switch ((simple_server_function_t)code)
                 {
+                case simple_server_function_t::add_with_callbacks:
+                {
+                    ipc::message::remote_ptr p;
+                    in >> p;
+                    int32_t args[2] = {};
+                    uint32_t codes[2] = { (uint32_t)simple_client_function_t::arg1, (uint32_t)simple_client_function_t::arg2 };
+                    for (size_t i = 0; i < sizeof(args) / sizeof(args[0]); ++i)
+                    {
+                        out.clear();
+                        out << codes[i] << p;
+                        p2p.write_message(out, predicate);
+                        p2p.read_message(in, predicate);
+                        in >> args[i];
+                    }
+
                     out.clear();
-                    out << codes[i] << p;
-                    p2p.write_message(out, predicate);
-                    p2p.read_message(in, predicate);
-                    in >> args[i];
+                    out << uint32_t(0xFFFFFFFFu) << (args[1] + args[0]);
+                    break;
+                }
+                case simple_server_function_t::add:
+                {
+                    int32_t a = 0, b = 0;
+                    in >> a >> b;
+                    out << uint32_t(0xFFFFFFFFu) << (a + b);
+                    break;
+                }
+                default:
+                    break;
                 }
 
-                out.clear();
-                out << uint32_t(0xFFFFFFFFu) << (args[1] + args[0]);
-                break;
+                p2p.write_message(out, predicate);
+                p2p.wait_for_shutdown(predicate);
             }
-            case simple_server_function_t::add:
+            catch (const std::exception& ex)
             {
-                int32_t a = 0, b = 0;
-                in >> a >> b;
-                out << uint32_t(0xFFFFFFFFu) << (a + b);
-                break;
+                std::cout << "request error >> " << ex.what() << std::endl;
             }
-            default:
-                break;
-            }
-
-            p2p.write_message(out, predicate);
-            p2p.wait_for_shutdown(predicate);
         }
-        catch (const std::exception& ex)
-        {
-            std::cout << "request error >> " << ex.what() << std::endl;
-        }
+    }
+    catch (const ipc::user_stop_request_exception&) {}
+    catch (const std::exception& ex)
+    {
+        std::cout << "fatal error >> " << ex.what() << std::endl;
     }
 }
 
