@@ -102,38 +102,41 @@ namespace ipc
             void set_ok() noexcept { m_ok = true; }
         } cleaner_obj(m_link);
 
-        if (m_ok)
+        if constexpr (!Use_exceptions)
         {
-            m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
-            if (INVALID_SOCKET == m_socket)
-            {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+            if (!m_ok)
                 return;
-            }
-            sockaddr_un serv_addr;
-            serv_addr.sun_family = AF_UNIX;
-            strcpy(serv_addr.sun_path, m_link.c_str());
-
-            if (!set_non_blocking_mode(m_socket))
-            {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
-                return;
-            }
-
-            if (bind(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) != 0)
-            {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
-                return;
-            }
-
-            if (listen(m_socket, 100) != 0)
-            {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
-                return;
-            }
-
-            cleaner_obj.set_ok();
         }
+
+        m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        if (INVALID_SOCKET == m_socket)
+        {
+            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+            return;
+        }
+        sockaddr_un serv_addr;
+        serv_addr.sun_family = AF_UNIX;
+        strcpy(serv_addr.sun_path, m_link.c_str());
+
+        if (!set_non_blocking_mode(m_socket))
+        {
+            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+            return;
+        }
+
+        if (bind(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) != 0)
+        {
+            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
+            return;
+        }
+
+        if (listen(m_socket, 100) != 0)
+        {
+            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
+            return;
+        }
+
+        cleaner_obj.set_ok();
     }
 
     template unix_server_socket<true>::unix_server_socket(const std::string&);
@@ -171,61 +174,64 @@ namespace ipc
     template <bool Use_exceptions>
     unix_client_socket<Use_exceptions>::unix_client_socket(const char* path) : point_to_point_socket(INVALID_SOCKET)
     {
-        if (m_ok)
+        if constexpr (!Use_exceptions)
         {
-            m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
-            if (INVALID_SOCKET == m_socket)
-            {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+            if (!m_ok)
                 return;
-            }
-            sockaddr_un serv_addr;
-            serv_addr.sun_family = AF_UNIX;
+        }
 
-            if (!is_socket_exists(path))
-            {
+        m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        if (INVALID_SOCKET == m_socket)
+        {
+            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+            return;
+        }
+        sockaddr_un serv_addr;
+        serv_addr.sun_family = AF_UNIX;
+
+        if (!is_socket_exists(path))
+        {
 #ifdef _WIN32
-                int ecode = ERROR_FILE_NOT_FOUND;
+            int ecode = ERROR_FILE_NOT_FOUND;
 #else
-                int ecode = ENOENT;
+            int ecode = ENOENT;
 #endif
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
-                return;
-            }
+            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
+            return;
+        }
 
-            strncpy(serv_addr.sun_path, path, sizeof(serv_addr.sun_path));
+        strncpy(serv_addr.sun_path, path, sizeof(serv_addr.sun_path));
 
-            const int max_attempts_count = 10;
-            int attempt = 0;
-            for (; attempt < max_attempts_count && connect(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) < 0; ++attempt)
-            {
-                int err_code = get_socket_error();
+        const int max_attempts_count = 10;
+        int attempt = 0;
+        for (; attempt < max_attempts_count && connect(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) < 0; ++attempt)
+        {
+            int err_code = get_socket_error();
 #ifdef _WIN32
-                if (err_code == WSAECONNREFUSED)
+            if (err_code == WSAECONNREFUSED)
 #else
-                if (err_code == EAGAIN || err_code == ECONNREFUSED || err_code == EINPROGRESS)
+            if (err_code == EAGAIN || err_code == ECONNREFUSED || err_code == EINPROGRESS)
 #endif
-                {
-                    std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO: fix me
-                }
-                else
-                {
-                    fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
-                    return;
-                }
-            }
-
-            if (attempt == max_attempts_count)
             {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
+                std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO: fix me
+            }
+            else
+            {
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
                 return;
             }
+        }
 
-            if (!set_non_blocking_mode(m_socket))
-            {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
-                return;
-            }
+        if (attempt == max_attempts_count)
+        {
+            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
+            return;
+        }
+
+        if (!set_non_blocking_mode(m_socket))
+        {
+            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+            return;
         }
     }
 
