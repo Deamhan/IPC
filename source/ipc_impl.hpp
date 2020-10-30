@@ -27,8 +27,8 @@
 
 namespace ipc
 {
-    template<typename Predicate, bool reading>
-    static bool wait_for(socket_t s, const Predicate& predicate)
+    template<typename Predicate, bool Use_exceptions, bool Reading>
+    static bool wait_for(socket_t s, const Predicate& predicate) noexcept(!Use_exceptions)
     {
         timeval timeout = { 1, 0 };
         int count = 0;
@@ -37,11 +37,16 @@ namespace ipc
         {
             need_stop = !predicate();
             if (need_stop)
-                break;
+            {
+                if constexpr (Use_exceptions)
+                    throw user_stop_request_exception(__FUNCTION_NAME__);
+                else
+                    break;
+            }
             fd_set fds;
             FD_ZERO(&fds);
             FD_SET(s, &fds);
-            if constexpr (reading)
+            if constexpr (Reading)
                 count = select(FD_SETSIZE, &fds, nullptr, nullptr, &timeout);
             else
                 count = select(FD_SETSIZE, nullptr, &fds, nullptr, &timeout);
@@ -53,7 +58,7 @@ namespace ipc
     template<bool Use_exceptions> template<typename Predicate>
     inline void point_to_point_socket<Use_exceptions>::wait_for_shutdown(const Predicate& predicate)
     {
-        wait_for<Predicate, true>(m_socket, predicate);
+        wait_for<Predicate, Use_exceptions, true>(m_socket, predicate);
     }
     
     #ifdef _WIN32
@@ -69,7 +74,7 @@ namespace ipc
         do
         {
             std::lock_guard<std::mutex> lm(m_lock);
-            if (!wait_for<Predicate, true>(m_socket, predicate))
+            if (!wait_for<Predicate, Use_exceptions, true>(m_socket, predicate))
             {
                 if constexpr (Use_exceptions)
                     throw socket_accept_exception(get_socket_error(), __FUNCTION_NAME__);
@@ -137,7 +142,7 @@ namespace ipc
         size_t size = (size_t)(-1);
         while (read < std::min<size_t>(message.size(), size))
         {
-            if (!wait_for<Predicate, true>(m_socket, predicate))
+            if (!wait_for<Predicate, Use_exceptions, true>(m_socket, predicate))
                 return update_status<Use_exceptions, channel_read_exception>(m_ok, false, get_socket_error(), __FUNCTION_NAME__);
     
             int result = recv(m_socket, message.data() + read, message.size() - read, 0);
@@ -171,7 +176,7 @@ namespace ipc
 
         do
         {
-            if (!wait_for<pred, false>(m_socket, predicate))
+            if (!wait_for<pred, Use_exceptions, false>(m_socket, predicate))
                 return update_status<Use_exceptions, channel_write_exception>(m_ok, false, get_socket_error(), __FUNCTION_NAME__);
 
             int result = send(m_socket, message, *(const __MSG_LENGTH_TYPE__*)message, 0);

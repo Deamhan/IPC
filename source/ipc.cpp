@@ -87,6 +87,21 @@ namespace ipc
     template <bool Use_exceptions> template <typename T, typename>
     unix_server_socket<Use_exceptions>::unix_server_socket(T&& socket_link) : m_link(std::forward<T>(socket_link))
     {
+        class cleaner
+        {
+            std::string& m_link;
+            bool m_ok;
+        public:
+            explicit cleaner(std::string& link) noexcept : m_link(link), m_ok(false) {}
+            ~cleaner()
+            {
+                if (!m_ok)
+                    m_link.clear();
+            }
+
+            void set_ok() noexcept { m_ok = true; }
+        } cleaner_obj(m_link);
+
         if (m_ok)
         {
             m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
@@ -101,24 +116,23 @@ namespace ipc
 
             if (!set_non_blocking_mode(m_socket))
             {
-                close();
                 fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
                 return;
             }
 
             if (bind(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) != 0)
             {
-                close();
                 fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
                 return;
             }
 
             if (listen(m_socket, 100) != 0)
             {
-                close();
                 fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
                 return;
             }
+
+            cleaner_obj.set_ok();
         }
     }
 
@@ -131,27 +145,13 @@ namespace ipc
     void unix_server_socket<Use_exceptions>::close() noexcept
     {
         super::close();
-        unlink(m_link.c_str());
-    }
-
-    template <bool Use_exceptions>
-    void point_to_point_socket<Use_exceptions>::close() noexcept
-    {
-        shutdown();
-        super::close();
+        if (!m_link.empty())
+            unlink(m_link.c_str());
     }
 
     template void unix_server_socket<true>::close() noexcept;
     template void unix_server_socket<false>::close() noexcept;
 
-    template <bool Use_exceptions>
-    unix_server_socket<Use_exceptions>::~unix_server_socket()
-    {
-        close();
-    }
-
-    template unix_server_socket<false>::~unix_server_socket();
-    template unix_server_socket<true>::~unix_server_socket();
 #endif //__AFUNIX_H__
 
 #ifdef _WIN32
@@ -184,7 +184,12 @@ namespace ipc
 
             if (!is_socket_exists(path))
             {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": target does not exist");
+#ifdef _WIN32
+                int ecode = ERROR_FILE_NOT_FOUND;
+#else
+                int ecode = ENOENT;
+#endif
+                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
                 return;
             }
 
@@ -204,7 +209,10 @@ namespace ipc
                     std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO: fix me
                 }
                 else
+                {
+                    fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
                     return;
+                }
             }
 
             if (attempt == max_attempts_count)
