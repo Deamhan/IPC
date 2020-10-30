@@ -105,6 +105,13 @@ namespace ipc
         explicit bad_channel_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
+    class user_stop_request_exception : public std::logic_error
+    {
+    public:
+        template <class T>
+        explicit user_stop_request_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+    };
+
     class container_overflow_exception : public std::logic_error
     {
     public:
@@ -202,6 +209,7 @@ namespace ipc
         socket(const socket&) = delete;
         socket& operator = (const socket&) = delete;
         void close() noexcept; ///< closes socket
+        ~socket() { close(); }
     protected:
         bool m_ok;
         socket_t m_socket;
@@ -506,9 +514,7 @@ namespace ipc
           */
         void shutdown() noexcept;
 
-        void close() noexcept;
-
-        ~point_to_point_socket() { close(); }
+        ~point_to_point_socket() { shutdown(); }
     protected:
         typedef socket<Use_exceptions> super;
 
@@ -585,7 +591,7 @@ namespace ipc
         template <typename T, typename = std::enable_if_t<std::is_same_v<std::string, std::remove_const_t<std::remove_reference_t<T>>>>>
         explicit unix_server_socket(T&& path);
         
-        ~unix_server_socket();
+        ~unix_server_socket() { close(); };
         void close() noexcept; ///< closes socket
     protected:
         typedef server_socket<Use_exceptions> super;
