@@ -11,7 +11,7 @@ struct add_args
     int32_t b;
 };
 
-static bool dispatch(uint32_t id, ipc::in_message<true>& in_msg, ipc::out_message<true>& out_msg)
+static bool dispatch(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg)
 {
     switch ((simple_client_function_t)id)
     {
@@ -26,7 +26,7 @@ static bool dispatch(uint32_t id, ipc::in_message<true>& in_msg, ipc::out_messag
     }
 }
 
-static bool minimal_dispatch(uint32_t id, ipc::in_message<true>& in_msg, ipc::out_message<true>& out_msg)
+static bool minimal_dispatch(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg)
 {
     return false;
 }

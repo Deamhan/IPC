@@ -41,7 +41,7 @@ static void ctrlBreakHandler(int /*signum*/) noexcept
     g_stop = true;
 }
 
-static void process_request(ipc::unix_server_socket<true> * server_socket)
+static void process_request(ipc::unix_server_socket * server_socket)
 {
     try
     {
@@ -52,8 +52,8 @@ static void process_request(ipc::unix_server_socket<true> * server_socket)
 
             try
             {
-                ipc::in_message<true> in;
-                ipc::out_message<true> out;
+                ipc::in_message in;
+                ipc::out_message out;
                 p2p.read_message(in, predicate);
 
                 uint32_t code;
@@ -114,7 +114,7 @@ int main()
         installSignalHandlers(ctrlBreakHandler);
 
         const char * link = "foo";
-        ipc::unix_server_socket<true> server_socket(std::string{ link });
+        ipc::unix_server_socket server_socket(std::string{ link });
         
         std::cout << "server is ready" << std::endl;
 

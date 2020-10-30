@@ -30,8 +30,8 @@ namespace ipc
     template <typename Dispatcher, typename Predicate>
     inline void rpc_server::thread_proc(const Dispatcher* d, const Predicate* predicate)
     {
-        in_message<true> in_msg;
-        out_message<true> out_msg;
+        in_message in_msg;
+        out_message out_msg;
     
         while ((*predicate)())
         {
@@ -54,14 +54,14 @@ namespace ipc
     }
     
     template <typename Tuple, size_t... I>
-    static void input_tuple(in_message<true>& msg, [[maybe_unused]] Tuple& t, std::index_sequence<I...>)
+    static void input_tuple(in_message& msg, [[maybe_unused]] Tuple& t, std::index_sequence<I...>)
     {
         if constexpr (sizeof...(I) != 0)
             (msg >> ... >> std::get<I>(t));
     }
     
     template <bool Use_done_tag, typename R, typename... Args> template <typename Func>
-    inline void function_invoker<R(Args...), Use_done_tag>::operator()(in_message<true>& in_msg, out_message<true>& out_msg, Func&& func)
+    inline void function_invoker<R(Args...), Use_done_tag>::operator()(in_message& in_msg, out_message& out_msg, Func&& func)
     {
         std::tuple<std::remove_reference_t<std::remove_cv_t<Args>>...> args;
         input_tuple(in_msg, args, std::make_index_sequence<sizeof...(Args)>{});
@@ -84,14 +84,14 @@ namespace ipc
     template <uint32_t id, typename R, typename Dispatcher, typename Predicate, typename... Args>
     inline R service_invoker::call_by_link(const char* link, Dispatcher& dispatcher, const Predicate& pred, const Args&... args)
     {
-        ipc::unix_client_socket<true> client_socket(link);
+        ipc::unix_client_socket client_socket(link);
     
-        out_message<true> request;
+        out_message request;
         request << (uint32_t)id;
         if constexpr (sizeof...(args) != 0)
             (request << ... << args);
 
-        in_message<true> response;
+        in_message response;
         while (true)
         {
             client_socket.write_message(request, pred);
@@ -117,16 +117,16 @@ namespace ipc
     }
     
     template <uint32_t id, typename R, typename Predicate, typename... Args>
-    R service_invoker::call_by_channel(point_to_point_socket<true>& socket, in_message<true>& in_msg, out_message<true>& out_msg, const Predicate& pred, const Args&... args)
+    R service_invoker::call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& pred, const Args&... args)
     {
         try
         {
             class message_cleaner
             {
-                in_message<true>& m_in_msg;
-                out_message<true>& m_out_msg;
+                in_message& m_in_msg;
+                out_message& m_out_msg;
             public:
-                message_cleaner(in_message<true>& in_msg, out_message<true>& out_msg) noexcept : m_in_msg(in_msg), m_out_msg(out_msg) {}
+                message_cleaner(in_message& in_msg, out_message& out_msg) noexcept : m_in_msg(in_msg), m_out_msg(out_msg) {}
                 ~message_cleaner()
                 {
                     m_in_msg.clear();

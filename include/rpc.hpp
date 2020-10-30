@@ -31,7 +31,7 @@ namespace ipc
     {
     public:
         template <typename Func>
-        void operator()(in_message<true>& in_msg, out_message<true>& out_msg, Func&& func);
+        void operator()(in_message& in_msg, out_message& out_msg, Func&& func);
     };
 
     class service_invoker
@@ -41,7 +41,7 @@ namespace ipc
         R call_by_link(const char * link, Dispatcher& dispatcher, const Predicate& pred, const Args&... args);
 
         template <uint32_t id, typename R, typename Predicate, typename... Args>
-        R call_by_channel(point_to_point_socket<true>& socket, in_message<true>& in_msg, out_message<true>& out_msg, const Predicate& pred, const Args&... args);
+        R call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& pred, const Args&... args);
     };
 
     class rpc_server
@@ -53,7 +53,7 @@ namespace ipc
         void run(const Dispatcher& dispatcher, const Predicate& predicate);
 
     protected:
-        unix_server_socket<true> m_server_socket;
+        unix_server_socket m_server_socket;
 
         template <typename Dispatcher, typename Predicate>
         void thread_proc(const Dispatcher* d, const Predicate* predicate);

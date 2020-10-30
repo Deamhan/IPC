@@ -199,21 +199,20 @@ namespace ipc
     /**
      * \brief Base class for all sockets hierarchy.
      */
-    template <bool Use_exceptions>
     class socket
     {
     public:
-        bool is_ok() const noexcept { return m_ok; } ///< checks socket state
-        operator bool() const noexcept { return is_ok(); } ///< checks socket state
+        operator bool() const noexcept { return m_ok; } ///< checks socket state
 
         socket(const socket&) = delete;
         socket& operator = (const socket&) = delete;
+
         void close() noexcept; ///< closes socket
         ~socket() { close(); }
     protected:
         bool m_ok;
         socket_t m_socket;
-        explicit socket(socket_t socket) noexcept(!Use_exceptions);
+        explicit socket(socket_t socket);
     };
 
     /**
@@ -259,6 +258,43 @@ namespace ipc
 
         template <class T>
         struct trivial_type;
+
+
+        template <>
+        struct message::trivial_type<int32_t>
+        {
+            static const bool value = true;
+        };
+
+        template <>
+        struct message::trivial_type<uint32_t>
+        {
+            static const bool value = true;
+        };
+
+        template <>
+        struct message::trivial_type<int64_t>
+        {
+            static const bool value = true;
+        };
+
+        template <>
+        struct message::trivial_type<uint64_t>
+        {
+            static const bool value = true;
+        };
+
+        template <>
+        struct message::trivial_type<double>
+        {
+            static const bool value = true;
+        };
+
+        template <>
+        struct message::trivial_type<char>
+        {
+            static const bool value = true;
+        };
 
         void reset_fail_state() noexcept { m_ok = true; }
 
@@ -306,10 +342,7 @@ namespace ipc
      *
      * This class serializes user's data to its internal buffer which max size is __MSG_MAX_LENGTH__.
      * Filled message should be passed to PointToPointSocket::write_message function.
-     *
-     * \tparam Use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool Use_exceptions>
     class out_message : public message
     {
     public:
@@ -318,7 +351,7 @@ namespace ipc
          * \param arg - data to serialize.
          */
         template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
-        out_message& operator << (T arg) { return push<T, tag_traits<T>::value>(arg); }
+        out_message& operator << (T arg) { return push<tag_traits<T>::value>(arg); }
 
         /**
          * \brief Serializes user's data of string type (std::string, const char*, std::string_view) to internal buffer.
@@ -330,7 +363,7 @@ namespace ipc
          * \brief Serializes user's pointer to internal buffer.
          * \param p - pointer to serialize.
          */
-        out_message& operator << (const remote_ptr& p) { return push<uint64_t, type_tag::remote_ptr>(get_u64_ptr(p)); }
+        out_message& operator << (const remote_ptr& p) { return push<type_tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Serializes user's blob to internal buffer.
@@ -351,7 +384,7 @@ namespace ipc
         const std::vector<char>& get_data() const noexcept { return m_buffer; }
         
     protected:
-        template <typename T, type_tag Tag, typename = std::enable_if_t<trivial_type<T>::value>>
+        template <type_tag Tag, typename T, typename = std::enable_if_t<trivial_type<T>::value>>
         out_message& push(T arg);
         
         std::vector<char> m_buffer;
@@ -362,10 +395,7 @@ namespace ipc
      *
      * This class deserializes user data from its internal buffer which max size is __MSG_MAX_LENGTH__.
      * Empty message should be filled by PointToPointSocket::read_message function first.
-     * 
-     * \tparam Use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool Use_exceptions>
     class in_message : public message
     {
     public:
@@ -374,7 +404,7 @@ namespace ipc
          * \param arg - extracted data.
          */
         template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
-        in_message& operator >> (T& arg) { return pop<T, tag_traits<T>::value>(arg); }
+        in_message& operator >> (T& arg) { return pop<tag_traits<T>::value>(arg); }
 
         /**
          * \brief Deserializes string data from internal buffer.
@@ -386,7 +416,7 @@ namespace ipc
          * \brief Deserializes remote pointer from internal buffer.
          * \param arg - extracted data.
          */
-        in_message& operator >> (remote_ptr& p) { return pop<uint64_t, type_tag::remote_ptr>(get_u64_ptr(p)); }
+        in_message& operator >> (remote_ptr& p) { return pop<type_tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Deserializes blob from internal buffer.
@@ -414,14 +444,13 @@ namespace ipc
         std::vector<char>& get_data() noexcept { return m_buffer; }
 
     protected:
-        template <typename T, type_tag Tag, typename = std::enable_if_t<trivial_type<T>::value>>
+        template <type_tag Tag, typename T, typename = std::enable_if_t<trivial_type<T>::value>>
         in_message& pop(T& arg);
 
         std::vector<char> m_buffer;
         size_t m_offset;
     };
 
-    template <bool Use_exceptions>
     class server_socket;
 
     /**
@@ -429,11 +458,8 @@ namespace ipc
      *
      * This class allows pair of applications to send and receive data between each other. Instance cannot be created directly:
      * it can be obtained as result of ServerSocket::accept (received instance will represent server side of data channel).
-     * 
-     * \tparam Use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool Use_exceptions>
-    class point_to_point_socket : public socket<Use_exceptions>
+    class point_to_point_socket : public socket
     {
     public:
         /**
@@ -460,7 +486,7 @@ namespace ipc
          * \return true if message has been read successfully.
          */
         template<typename Predicate>
-        bool read_message(in_message<Use_exceptions>& message, const Predicate& predicate);
+        bool read_message(in_message& message, const Predicate& predicate);
 
         /**
           * \brief Writes raw message to channel. Use it only if you really need raw message form.
@@ -492,7 +518,7 @@ namespace ipc
           * \return true if message writing has been started successfully
           */
         template<typename Predicate>
-        bool write_message(out_message<Use_exceptions>& message, const Predicate& predicate) { return write_message(message.get_data().data(), predicate); }
+        bool write_message(out_message& message, const Predicate& predicate) { return write_message(message.get_data().data(), predicate); }
 
         /**
           * \brief Waits for shutdown signal.
@@ -516,23 +542,20 @@ namespace ipc
 
         ~point_to_point_socket() { shutdown(); }
     protected:
-        typedef socket<Use_exceptions> super;
+        typedef socket super;
 
         explicit point_to_point_socket(socket_t socket) : socket(socket) {}
 
-        friend class server_socket<Use_exceptions>;
+        friend class server_socket;
     };
 
 #ifdef __AFUNIX_H__
     /**
      * \brief Client side of bidirectional data channel based on UNIX sockets.
-     *
-     * \tparam Use_exceptions throw exception on error in addition to set fail status
      * 
      * \warning Unix sockets available on Windows only since Windows 10 build 17063
      */
-    template <bool Use_exceptions>
-    class unix_client_socket : public point_to_point_socket<Use_exceptions>
+    class unix_client_socket : public point_to_point_socket
     {
     public:
         /**
@@ -546,11 +569,8 @@ namespace ipc
 
     /**
      * \brief Common passive (listening) socket. Helper class only.
-     * 
-     * \tparam Use_exceptions throw exception on error in addition to set fail status
      */
-    template <bool Use_exceptions>
-    class server_socket : public socket<Use_exceptions>
+    class server_socket : public socket
     {
     public:
         /**
@@ -564,7 +584,7 @@ namespace ipc
          * \return socket for data exchnge
          */
         template<typename Predicate>
-        point_to_point_socket<Use_exceptions> accept(const Predicate& predicate);
+        point_to_point_socket accept(const Predicate& predicate);
     protected:
         server_socket() noexcept : socket(INVALID_SOCKET) {}
 
@@ -574,13 +594,10 @@ namespace ipc
 #ifdef __AFUNIX_H__
    /**
      * \brief Unix passive (listening) socket.
-     *
-     * \tparam Use_exceptions throw exception on error in addition to set fail status
      * 
      * \warning Unix sockets available on Windows only since Windows 10 build 17063
      */
-    template <bool Use_exceptions>
-    class unix_server_socket : public server_socket<Use_exceptions>
+    class unix_server_socket : public server_socket
     {
     public:
         /**
@@ -594,7 +611,7 @@ namespace ipc
         ~unix_server_socket() { close(); };
         void close() noexcept; ///< closes socket
     protected:
-        typedef server_socket<Use_exceptions> super;
+        typedef server_socket super;
         std::string m_link;
     };
 #endif //__AFUNIX_H__

@@ -36,21 +36,13 @@ namespace ipc
 #endif
     }
 
-    template <bool Use_exceptions>
-    socket<Use_exceptions>::socket(socket_t socket) noexcept(!Use_exceptions) : m_ok(init_socket_api()), m_socket(socket)
+    socket::socket(socket_t socket) : m_ok(init_socket_api()), m_socket(socket)
     {
-        if constexpr (Use_exceptions)
-        {
-            if (!m_ok)
-                throw socket_api_failed_exception(get_socket_error(), __FUNCTION_NAME__);
-        }  
+        if (!m_ok)
+            throw socket_api_failed_exception(get_socket_error(), __FUNCTION_NAME__);
     }
 
-    template socket<false>::socket(socket_t socket) noexcept;
-    template socket<true>::socket(socket_t socket);
-
-    template <bool Use_exceptions>
-    void socket<Use_exceptions>::close() noexcept
+    void socket::close() noexcept
     {
         if (m_socket != INVALID_SOCKET)
         {
@@ -63,9 +55,6 @@ namespace ipc
             m_ok = false;
         }
     }
-
-    template void socket<true>::close() noexcept;
-    template void socket<false>::close() noexcept;
 
     static bool set_non_blocking_mode(socket_t s) noexcept
     {
@@ -84,76 +73,36 @@ namespace ipc
     }
 
 #ifdef __AFUNIX_H__
-    template <bool Use_exceptions> template <typename T, typename>
-    unix_server_socket<Use_exceptions>::unix_server_socket(T&& socket_link) : m_link(std::forward<T>(socket_link))
+    template <typename T, typename>
+    unix_server_socket::unix_server_socket(T&& socket_link) : m_link(std::forward<T>(socket_link))
     {
-        class cleaner
-        {
-            std::string& m_link;
-            bool m_ok;
-        public:
-            explicit cleaner(std::string& link) noexcept : m_link(link), m_ok(false) {}
-            ~cleaner()
-            {
-                if (!m_ok)
-                    m_link.clear();
-            }
-
-            void set_ok() noexcept { m_ok = true; }
-        } cleaner_obj(m_link);
-
-        if constexpr (!Use_exceptions)
-        {
-            if (!m_ok)
-                return;
-        }
-
         m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
         if (INVALID_SOCKET == m_socket)
-        {
-            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
-            return;
-        }
+            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+
         sockaddr_un serv_addr;
         serv_addr.sun_family = AF_UNIX;
         strcpy(serv_addr.sun_path, m_link.c_str());
 
         if (!set_non_blocking_mode(m_socket))
-        {
-            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
-            return;
-        }
+            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
 
         if (bind(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) != 0)
-        {
-            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
-            return;
-        }
+            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
 
         if (listen(m_socket, 100) != 0)
-        {
-            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
-            return;
-        }
-
-        cleaner_obj.set_ok();
+            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
     }
 
-    template unix_server_socket<true>::unix_server_socket(const std::string&);
-    template unix_server_socket<true>::unix_server_socket(std::string&&);
-    template unix_server_socket<false>::unix_server_socket(const std::string&);
-    template unix_server_socket<false>::unix_server_socket(std::string&&);
+    template unix_server_socket::unix_server_socket(const std::string&);
+    template unix_server_socket::unix_server_socket(std::string&&);
 
-    template <bool Use_exceptions>
-    void unix_server_socket<Use_exceptions>::close() noexcept
+    void unix_server_socket::close() noexcept
     {
         super::close();
         if (!m_link.empty())
             unlink(m_link.c_str());
     }
-
-    template void unix_server_socket<true>::close() noexcept;
-    template void unix_server_socket<false>::close() noexcept;
 
 #endif //__AFUNIX_H__
 
@@ -171,21 +120,12 @@ namespace ipc
 #endif
 
 #ifdef __AFUNIX_H__
-    template <bool Use_exceptions>
-    unix_client_socket<Use_exceptions>::unix_client_socket(const char* path) : point_to_point_socket(INVALID_SOCKET)
+    unix_client_socket::unix_client_socket(const char* path) : point_to_point_socket(INVALID_SOCKET)
     {
-        if constexpr (!Use_exceptions)
-        {
-            if (!m_ok)
-                return;
-        }
-
         m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
         if (INVALID_SOCKET == m_socket)
-        {
-            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
-            return;
-        }
+            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+
         sockaddr_un serv_addr;
         serv_addr.sun_family = AF_UNIX;
 
@@ -196,8 +136,7 @@ namespace ipc
 #else
             int ecode = ENOENT;
 #endif
-            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
-            return;
+            fail_status(throw_socket_prepare_exception, m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
         }
 
         strncpy(serv_addr.sun_path, path, sizeof(serv_addr.sun_path));
@@ -216,27 +155,16 @@ namespace ipc
                 std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO: fix me
             }
             else
-            {
-                fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
-                return;
-            }
+                fail_status(throw_socket_prepare_exception, m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
         }
 
         if (attempt == max_attempts_count)
-        {
-            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
-            return;
-        }
+            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
 
         if (!set_non_blocking_mode(m_socket))
-        {
-            fail_status_without_result<Use_exceptions>(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
-            return;
-        }
+            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
     }
 
-    template unix_client_socket<true>::unix_client_socket(const char* path);
-    template unix_client_socket<false>::unix_client_socket(const char* path);
 #endif //__AFUNIX_H__
 
     [[noreturn]] void ipc::throw_message_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
@@ -299,11 +227,9 @@ namespace ipc
     }
 #endif // __AFUNIX_H__
 
-    template <bool Use_exceptions>
-    out_message<Use_exceptions>& out_message<Use_exceptions> ::operator << (const std::string_view& s)
+    out_message& out_message::operator << (const std::string_view& s)
     {
-        if (!check_status<Use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
-            return *this;
+        check_status<bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set");
 
 #if __MSG_USE_TAGS__
         const size_t delta = 2; // terminating '\0' and tag
@@ -315,7 +241,7 @@ namespace ipc
         const size_t used = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
         const size_t new_used = used + len + delta;
         if (new_used > get_max_size())
-            return fail_status<Use_exceptions>(throw_message_overflow_exception, m_ok, *this, __FUNCTION_NAME__, new_used, get_max_size());
+            fail_status(throw_message_overflow_exception, m_ok, __FUNCTION_NAME__, new_used, get_max_size());
         else
         {
 #if __MSG_USE_TAGS__
@@ -329,14 +255,9 @@ namespace ipc
         return *this;
     }
 
-    template out_message<true>& out_message<true> ::operator << (const std::string_view& s);
-    template out_message<false>& out_message<false> ::operator << (const std::string_view& s);
-
-    template <bool Use_exceptions>
-    out_message<Use_exceptions>& out_message<Use_exceptions>::operator << (const std::pair<const uint8_t*, size_t>& blob)
+    out_message& out_message::operator << (const std::pair<const uint8_t*, size_t>& blob)
     {
-        if (!check_status<Use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
-            return *this;
+        check_status<bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set");
 
 #if __MSG_USE_TAGS__
         const size_t delta = 1;
@@ -348,7 +269,7 @@ namespace ipc
         const size_t used = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
         const size_t new_used = used + len + delta;
         if (new_used > get_max_size())
-            return fail_status<Use_exceptions>(throw_message_overflow_exception, m_ok, *this, __FUNCTION_NAME__, new_used, get_max_size());
+            fail_status(throw_message_overflow_exception, m_ok, __FUNCTION_NAME__, new_used, get_max_size());
         else
         {
 #if __MSG_USE_TAGS__
@@ -363,14 +284,9 @@ namespace ipc
         return *this;
     }
 
-    template out_message<true>& out_message<true>::operator << (const std::pair<const uint8_t*, size_t>& blob);
-    template out_message<false>& out_message<false>::operator << (const std::pair<const uint8_t*, size_t>& blob);
-
-    template <bool Use_exceptions>
-    in_message<Use_exceptions>& in_message<Use_exceptions>::operator >> (std::string& arg)
+    in_message& in_message::operator >> (std::string& arg)
     {
-        if (!check_status<Use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
-            return *this;
+        check_status<bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set");
 
         arg.clear();
         __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
@@ -380,12 +296,12 @@ namespace ipc
         const size_t delta = 1; /*termination '\0' only*/
 #endif // __MSG_USE_TAGS__
         if (size < m_offset + delta)
-            return fail_status<Use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + delta, size);
+            fail_status(throw_message_too_short_exception, m_ok, __FUNCTION_NAME__, m_offset + delta, size);
 
 #if __MSG_USE_TAGS__
         type_tag tag = (type_tag)m_buffer[m_offset];
         if (tag != type_tag::str)
-            return fail_status<Use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, to_string(tag), to_string(type_tag::str));
+            fail_status(throw_type_mismatch_exception, m_ok, __FUNCTION_NAME__, to_string(tag), to_string(type_tag::str));
 
         ++m_offset;
 #endif // __MSG_USE_TAGS__
@@ -395,14 +311,9 @@ namespace ipc
         if (end == nullptr)
         {
             m_ok = false;
-            if constexpr (Use_exceptions)
-            {
-                std::string msg(__FUNCTION_NAME__);
-                msg.append(": terminating zero not found");
-                throw container_overflow_exception(std::move(msg));
-            }
-            else
-                return *this;
+            std::string msg(__FUNCTION_NAME__);
+            msg.append(": terminating zero not found");
+            throw container_overflow_exception(std::move(msg));
         }
 
         arg.assign(begin, end - begin);
@@ -411,14 +322,9 @@ namespace ipc
         return *this;
     }
 
-    template in_message<true>& in_message<true>::operator >> (std::string& arg);
-    template in_message<false>& in_message<false>::operator >> (std::string& arg);
-
-    template <bool Use_exceptions>
-    in_message<Use_exceptions>& in_message<Use_exceptions>::operator >> (std::vector<uint8_t>& blob)
+    in_message& in_message::operator >> (std::vector<uint8_t>& blob)
     {
-        if (!check_status<Use_exceptions, bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set"))
-            return *this;
+        check_status<bad_message_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": fail flag is set");
 
         __MSG_LENGTH_TYPE__ size = *(__MSG_LENGTH_TYPE__*)m_buffer.data();
 #if __MSG_USE_TAGS__
@@ -427,12 +333,12 @@ namespace ipc
         const size_t delta = sizeof(__MSG_LENGTH_TYPE__);
 #endif // __MSG_USE_TAGS__
         if (size < m_offset + delta)
-            return fail_status<Use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + delta, size);
+            fail_status(throw_message_too_short_exception, m_ok, __FUNCTION_NAME__, m_offset + delta, size);
 
 #if __MSG_USE_TAGS__
         type_tag tag = (type_tag)m_buffer[m_offset];
         if (tag != type_tag::blob)
-            return fail_status<Use_exceptions>(throw_type_mismatch_exception, m_ok, *this, __FUNCTION_NAME__, to_string(tag), to_string(type_tag::blob));
+            fail_status(throw_type_mismatch_exception, m_ok, __FUNCTION_NAME__, to_string(tag), to_string(type_tag::blob));
 
         ++m_offset;
 #endif // __MSG_USE_TAGS__
@@ -441,7 +347,7 @@ namespace ipc
         m_offset += sizeof(__MSG_LENGTH_TYPE__);
 
         if (size < m_offset + blob_len)
-            return fail_status<Use_exceptions>(throw_message_too_short_exception, m_ok, *this, __FUNCTION_NAME__, m_offset + blob_len, size);
+            fail_status(throw_message_too_short_exception, m_ok, __FUNCTION_NAME__, m_offset + blob_len, size);
 
         if (blob_len != 0)
         {
@@ -452,7 +358,4 @@ namespace ipc
 
         return *this;
     }
-
-    template in_message<true>& in_message<true>::operator >> (std::vector<uint8_t>& blob);
-    template in_message<false>& in_message<false>::operator >> (std::vector<uint8_t>& blob);
 }

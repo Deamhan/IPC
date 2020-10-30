@@ -10,16 +10,16 @@ int main()
         std::setlocale(LC_ALL, "");
 
         const char * link = "foo";
-        ipc::unix_client_socket<true> client_socket(link);
+        ipc::unix_client_socket client_socket(link);
     
-        ipc::out_message<true> out;
+        ipc::out_message out;
         const char * req_text = "request";
         out << req_text;
     
         auto predicate = []() { return true; };
         client_socket.write_message(out, predicate);
     
-        ipc::in_message<true> in;
+        ipc::in_message in;
         client_socket.read_message(in, predicate);
     
         std::string resp;
