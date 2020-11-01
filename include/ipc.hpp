@@ -84,6 +84,9 @@
 
 namespace ipc
 {
+    /**
+     * \brief Generic communication channel (passive or active) exception class.
+     */
     class channel_exception : public std::system_error
     {
     protected:
@@ -91,6 +94,9 @@ namespace ipc
         explicit channel_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Socket api initialization error (Windows only).
+     */
     class socket_api_failed_exception : public std::system_error
     {
     public:
@@ -98,6 +104,11 @@ namespace ipc
         explicit socket_api_failed_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that was caused by use of failed channel.
+     * 
+     * After any kind of exception channel internal state becomes "failed" and it should not be used any more. Otherwise bad_channel_exception will be thrown.
+     */
     class bad_channel_exception : public std::logic_error
     {
     public:
@@ -105,6 +116,11 @@ namespace ipc
         explicit bad_channel_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that identifies user stop request.
+     * 
+     * Many channel classes methods require user predicate to allow user to stop result waiting loop. If such predicate returns false ipc::user_stop_request_exception will be thrown.
+     */
     class user_stop_request_exception : public std::logic_error
     {
     public:
@@ -112,6 +128,11 @@ namespace ipc
         explicit user_stop_request_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that will be thrown if container is not large enough to hold the serialized data object.
+     * 
+     * Some library classes methods accept fixed size containers (such as std::array) which capacity may be not enough to hold entire serialized object. Be caution with such methods.
+     */
     class container_overflow_exception : public std::logic_error
     {
     public:
@@ -119,6 +140,9 @@ namespace ipc
         explicit container_overflow_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Generic message object format mismatch exception.
+     */
     class message_format_exception : public std::logic_error
     {
     protected:
@@ -126,6 +150,11 @@ namespace ipc
         explicit message_format_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that will be thrown if serialized object can't be deserialized to user provided variable.
+     *
+     * If __MSG_USE_TAGS__ is enabled message classes provide basic type safety check. If user tries to deserialize object to variable of wrong type such exception will be thrown.
+     */
     class type_mismach_exception : public message_format_exception
     {
     public:
@@ -133,6 +162,9 @@ namespace ipc
         explicit type_mismach_exception(T&& message) : message_format_exception(std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that will be thrown if message was truncated and object cannot be fully deserialized.
+     */
     class message_too_short_exception : public message_format_exception
     {
     public:
@@ -140,6 +172,11 @@ namespace ipc
         explicit message_too_short_exception(T&& message) : message_format_exception(std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that was caused by use of failed message.
+     * 
+     * After any kind of exception message internal state becomes "failed" and it should be cleared by ipc::message::reset_fail_state or by full message reset. Otherwise bad_message_exception will be thrown.
+     */
     class bad_message_exception : public std::logic_error
     {
     public:
@@ -147,6 +184,11 @@ namespace ipc
         explicit bad_message_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that will be thrown if message cannot hold all user data according max size limitation.
+     *
+     * To avoid exception condition you should either increase __MSG_MAX_LENGTH__ or reduce data amount per message. 
+     */
     class message_overflow_exception : public std::logic_error
     {
     public:
@@ -154,6 +196,9 @@ namespace ipc
         explicit message_overflow_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that was caused by active channel read error.
+     */
     class channel_read_exception : public channel_exception
     {
     public:
@@ -161,6 +206,9 @@ namespace ipc
         explicit channel_read_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Exception that was caused by active channel write error.
+     */
     class channel_write_exception : public channel_exception
     {
     public:
@@ -168,6 +216,9 @@ namespace ipc
         explicit channel_write_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Generic passive socket exception class.
+     */
     class passive_socket_exception : public channel_exception
     {
     protected:
@@ -175,6 +226,9 @@ namespace ipc
         explicit passive_socket_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Passive socket preparation error.
+     */
     class socket_prepare_exception : public passive_socket_exception
     {
     public:
@@ -182,18 +236,14 @@ namespace ipc
         explicit socket_prepare_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
     };
 
+    /**
+     * \brief Passive socket accept error.
+     */
     class socket_accept_exception : public passive_socket_exception
     {
     public:
         template <class T>
         explicit socket_accept_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
-    };
-
-    class unknown_message_tag : public std::logic_error
-    {
-    public:
-        template <class T>
-        explicit unknown_message_tag(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -202,7 +252,7 @@ namespace ipc
     class socket
     {
     public:
-        operator bool() const noexcept { return m_ok; } ///< checks socket state
+        operator bool() const noexcept { return m_ok; } ///< checks socket internal state
 
         socket(const socket&) = delete;
         socket& operator = (const socket&) = delete;
@@ -226,6 +276,8 @@ namespace ipc
     public:
         /**
          * \brief Simple raw pointer wrapper.
+         * 
+         * \tparam ConstPtr defines constness of pointer
          *
          * Can't be used on another side, but can be used as callback parameter as context for example.
          * This wrapper can be used even between applications of different bitness.
@@ -235,6 +287,9 @@ namespace ipc
         {
         public:
 
+           /**
+            * \brief Helper structure that identifies internal pointer type.
+            */
             template <bool ConstPtr>
             struct const_traits
             {
@@ -270,12 +325,13 @@ namespace ipc
         };
 
         constexpr size_t get_max_size() const { return msg_max_length; } ///< returns max available message buffer size
-        bool is_ok() const noexcept { return m_ok; } ///< checks message state
-        operator bool() const noexcept { return is_ok(); } ///< checks message state
+        operator bool() const noexcept { return m_ok; } ///< checks message state
 
+        /**
+         * \brief Helper structure that is used to check 'triviality' of type.
+         */
         template <class T>
         struct trivial_type;
-
 
         template <>
         struct message::trivial_type<int32_t>
@@ -313,6 +369,9 @@ namespace ipc
             static const bool value = true;
         };
 
+        /**
+         * \brief Resets internal state to ok.
+         */
         void reset_fail_state() noexcept { m_ok = true; }
 
     protected:
@@ -583,7 +642,7 @@ namespace ipc
     {
     public:
         /**
-          * \brief Tries to connect to UNIX socket \p path. Call #is_ok to check result.
+          * \brief Tries to connect to UNIX socket \p path.
           *      
           * \param path UNIX socket path
           */
@@ -601,11 +660,10 @@ namespace ipc
          * \brief Waits for incoming connections. 
          *          
          * \p predicate may be called several times to ask if the function should continue waiting for incoming connections. If \p predicate returns false function 
-         * will immediately return disconnected socket (ipc::PointToPointSocket::is_ok on which will return false). Function returns disconnected socket on errors too,
-         * so that result of ipc::PointToPointSocket::is_ok must be checked before use of the result.
+         * will immediately throw ipc::user_stop_request_exception. 
          *
          * \param predicate function of type bool() or similar callable object 
-         * \return socket for data exchnge
+         * \return socket for data exchange
          */
         template<typename Predicate>
         point_to_point_socket accept(const Predicate& predicate);
@@ -625,7 +683,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief Tries to create UNIX socket \p path. Call #is_ok to check result.
+         * \brief Tries to create UNIX socket \p path. 
          *      
          * \param path UNIX socket path
          */
