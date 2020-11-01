@@ -54,7 +54,7 @@ namespace ipc
     }
     
     template <typename Tuple, size_t... I>
-    static void input_tuple(in_message& msg, [[maybe_unused]] Tuple& t, std::index_sequence<I...>)
+    static inline void input_tuple(in_message& msg, [[maybe_unused]] Tuple& t, std::index_sequence<I...>)
     {
         if constexpr (sizeof...(I) != 0)
             (msg >> ... >> std::get<I>(t));

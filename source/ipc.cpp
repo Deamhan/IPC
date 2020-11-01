@@ -67,31 +67,26 @@ namespace ipc
 #endif
     }
 
-    [[noreturn]] static void throw_socket_prepare_exception(int code, std::string&& text)
-    {
-        throw socket_prepare_exception(code, std::move(text));
-    }
-
 #ifdef __AFUNIX_H__
     template <typename T, typename>
     unix_server_socket::unix_server_socket(T&& socket_link) : m_link(std::forward<T>(socket_link))
     {
         m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
         if (INVALID_SOCKET == m_socket)
-            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
 
         sockaddr_un serv_addr;
         serv_addr.sun_family = AF_UNIX;
         strcpy(serv_addr.sun_path, m_link.c_str());
 
         if (!set_non_blocking_mode(m_socket))
-            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
 
         if (bind(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) != 0)
-            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
 
         if (listen(m_socket, 100) != 0)
-            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
     }
 
     template unix_server_socket::unix_server_socket(const std::string&);
@@ -124,7 +119,7 @@ namespace ipc
     {
         m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
         if (INVALID_SOCKET == m_socket)
-            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
 
         sockaddr_un serv_addr;
         serv_addr.sun_family = AF_UNIX;
@@ -136,7 +131,7 @@ namespace ipc
 #else
             int ecode = ENOENT;
 #endif
-            fail_status(throw_socket_prepare_exception, m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
+            fail_status<socket_prepare_exception>(m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
         }
 
         strncpy(serv_addr.sun_path, path, sizeof(serv_addr.sun_path));
@@ -155,14 +150,14 @@ namespace ipc
                 std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO: fix me
             }
             else
-                fail_status(throw_socket_prepare_exception, m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
+                fail_status<socket_prepare_exception>(m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
         }
 
         if (attempt == max_attempts_count)
-            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
 
         if (!set_non_blocking_mode(m_socket))
-            fail_status(throw_socket_prepare_exception, m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
     }
 
 #endif //__AFUNIX_H__

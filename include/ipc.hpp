@@ -374,7 +374,7 @@ namespace ipc
         /**
          * \brief Resets message to empty state.
          */
-        void clear(); 
+        void clear() noexcept; 
         
         out_message() { clear(); }
         
@@ -434,7 +434,7 @@ namespace ipc
         /**
          * \brief Resets message to empty state.
          */
-        void clear();
+        void clear() noexcept;
         
         in_message() : m_buffer(get_max_size()) { clear(); }
         

@@ -27,16 +27,14 @@
 
 namespace ipc
 {
-    template<typename Predicate, bool Reading>
+    template<bool Reading, typename Predicate>
     static bool wait_for(socket_t s, const Predicate& predicate)
     {
         timeval timeout = { 1, 0 };
         int count = 0;
-        bool need_stop = false;
         while (count == 0)
         {
-            need_stop = !predicate();
-            if (need_stop)
+            if (!predicate())
                 throw user_stop_request_exception(__FUNCTION_NAME__);
 
             fd_set fds;
@@ -54,7 +52,7 @@ namespace ipc
     template<typename Predicate>
     inline void point_to_point_socket::wait_for_shutdown(const Predicate& predicate)
     {
-        wait_for<Predicate, true>(m_socket, predicate);
+        wait_for<true>(m_socket, predicate);
     }
     
     #ifdef _WIN32
@@ -66,17 +64,16 @@ namespace ipc
     template<typename Predicate>
     inline point_to_point_socket server_socket::accept(const Predicate& predicate)
     {
-        socket_t p2p_socket = INVALID_SOCKET;
         do
         {
             std::lock_guard<std::mutex> lm(m_lock);
-            if (!wait_for<Predicate, true>(m_socket, predicate))
+            if (!wait_for<true>(m_socket, predicate))
                 throw socket_accept_exception(get_socket_error(), __FUNCTION_NAME__);
     
     #ifdef __LINUX__
-            p2p_socket = ::accept4(m_socket, nullptr, 0, SOCK_NONBLOCK);
+            socket_t p2p_socket = ::accept4(m_socket, nullptr, 0, SOCK_NONBLOCK);
     #else
-            p2p_socket = ::accept(m_socket, nullptr, 0);
+            socket_t p2p_socket = ::accept(m_socket, nullptr, 0);
     #endif
             if (p2p_socket == INVALID_SOCKET)
             {
@@ -91,14 +88,12 @@ namespace ipc
                     throw socket_accept_exception(err_code, __FUNCTION_NAME__);
             }
             else
-                break;
+                return point_to_point_socket(p2p_socket);
         } while (true);
-    
-        return point_to_point_socket(p2p_socket);
     }
     
     template <typename exception_t, typename... Args>
-    static void check_status(bool status, Args&&... args)
+    static inline void check_status(bool status, Args&&... args)
     {
         if (!status)
             throw exception_t(std::forward<Args>(args)...);
@@ -112,6 +107,13 @@ namespace ipc
         return true;
     }
 
+    template <typename exception_t, typename... Args>
+    [[noreturn]] static inline bool fail_status(bool& status, Args&&... args)
+    {
+        status = false;
+        throw exception_t(std::forward<Args>(args)...);
+    }
+
     template<typename Predicate>
     inline bool point_to_point_socket::read_message(std::vector<char>& message, const Predicate& predicate)
     {
@@ -121,18 +123,18 @@ namespace ipc
         size_t size = (size_t)(-1);
         while (read < std::min<size_t>(message.size(), size))
         {
-            if (!wait_for<Predicate, true>(m_socket, predicate))
-                return update_status<channel_read_exception>(m_ok, false, get_socket_error(), __FUNCTION_NAME__);
+            if (!wait_for<true>(m_socket, predicate))
+                fail_status<channel_read_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
     
             int result = recv(m_socket, message.data() + read, message.size() - read, 0);
             if (result < 0)
             {
-    #ifdef __unix__
+#ifdef __unix__
                 if (get_socket_error() == EAGAIN)
                     continue;
-    #endif
+#endif
 
-                return update_status<channel_read_exception>(m_ok, read == size, get_socket_error(), __FUNCTION_NAME__);
+                break;
             }
             else if (result != 0)
             {
@@ -141,21 +143,21 @@ namespace ipc
                     size = *(__MSG_LENGTH_TYPE__*)message.data();
             }
             else
-                return update_status<channel_read_exception>(m_ok, read == size, get_socket_error(), __FUNCTION_NAME__);
+                break;
         }
     
         return update_status<channel_read_exception>(m_ok, read == size, get_socket_error(), __FUNCTION_NAME__);
     }
     
-    template<typename pred>
-    inline bool point_to_point_socket::write_message(const char* message, const pred& predicate)
+    template<typename Predicate>
+    inline bool point_to_point_socket::write_message(const char* message, const Predicate& predicate)
     {
         check_status<bad_channel_exception>(m_ok, __FUNCTION_NAME__);
 
         do
         {
-            if (!wait_for<pred, false>(m_socket, predicate))
-                return update_status<channel_write_exception>(m_ok, false, get_socket_error(), __FUNCTION_NAME__);
+            if (!wait_for<false>(m_socket, predicate))
+                return fail_status<channel_write_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
 
             int result = send(m_socket, message, *(const __MSG_LENGTH_TYPE__*)message, 0);
             if (result >= 0)
@@ -170,7 +172,7 @@ namespace ipc
     #endif
                     continue;
     
-                return update_status<channel_write_exception>(m_ok, false, get_socket_error(), __FUNCTION_NAME__);
+                return fail_status<channel_write_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
             }
         } while (true);
     }
@@ -273,14 +275,14 @@ namespace ipc
         return *this;
     }
     
-    inline void out_message::clear()
+    inline void out_message::clear() noexcept
     {
         m_buffer.resize(sizeof(__MSG_LENGTH_TYPE__));
         *(__MSG_LENGTH_TYPE__*)m_buffer.data() = sizeof(__MSG_LENGTH_TYPE__);
         m_ok = true;
     }
     
-    inline void in_message::clear()
+    inline void in_message::clear() noexcept
     {
         *(__MSG_LENGTH_TYPE__*)m_buffer.data() = sizeof(__MSG_LENGTH_TYPE__);
         m_ok = true;
