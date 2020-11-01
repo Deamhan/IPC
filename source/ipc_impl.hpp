@@ -324,7 +324,7 @@ namespace ipc
         {
 #if __MSG_USE_TAGS__
             message::type_tag tag = (message::type_tag)m_buffer[m_offset];
-            if (is_compatible_tags(tag, Expected_tag))
+            if (!is_compatible_tags(tag, Expected_tag))
                 fail_status(throw_type_mismatch_exception, m_ok, __FUNCTION_NAME__, to_string(tag), to_string(Expected_tag));
 
             ++m_offset;

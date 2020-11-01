@@ -23,6 +23,8 @@ namespace ipc
         for (auto& worker : workers)
             worker = std::thread(&rpc_server::thread_proc<Dispatcher, Predicate>, this, &dispatcher, &predicate);
     
+        dispatcher.ready();
+
         for (auto& worker : workers)
             worker.join();
     }

@@ -50,7 +50,7 @@ public:
         switch ((simple_server_function_t)id)
         {
         case simple_server_function_t::add_with_callbacks:
-            ipc::function_invoker<int32_t(ipc::message::remote_ptr<false>), true>()(in_msg, out_msg, [&p2p_socket, &in_msg, &out_msg](const ipc::message::remote_ptr<false>& p) mutable -> int32_t {
+            ipc::function_invoker<int32_t(ipc::message::remote_ptr<true>), true>()(in_msg, out_msg, [&p2p_socket, &in_msg, &out_msg](const ipc::message::remote_ptr<true>& p) mutable -> int32_t {
                 int32_t arg1 = ipc::service_invoker().call_by_channel<(uint32_t)simple_client_function_t::arg1, int32_t>(p2p_socket, in_msg, out_msg, predicate, p);
                 int32_t arg2 = ipc::service_invoker().call_by_channel<(uint32_t)simple_client_function_t::arg2, int32_t>(p2p_socket, in_msg, out_msg, predicate, p);
 
@@ -65,10 +65,15 @@ public:
         }
     }
 
-    void report_error(const std::exception& ex) const noexcept
+    void report_error(const std::exception& ex) const
     {
         if (!g_stop)
             std::cout << "call error >> " << ex.what() << std::endl;
+    }
+
+    void ready() const
+    {
+        std::cout << "server is ready" << std::endl;
     }
 };
 

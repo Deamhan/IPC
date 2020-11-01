@@ -62,7 +62,7 @@ static void process_request(ipc::unix_server_socket * server_socket)
                 {
                 case simple_server_function_t::add_with_callbacks:
                 {
-                    ipc::message::remote_ptr<false> p;
+                    ipc::message::remote_ptr<true> p;
                     in >> p;
                     int32_t args[2] = {};
                     uint32_t codes[2] = { (uint32_t)simple_client_function_t::arg1, (uint32_t)simple_client_function_t::arg2 };

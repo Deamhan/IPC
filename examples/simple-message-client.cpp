@@ -17,7 +17,7 @@ int32_t call_add_with_callbacks(add_args * args)
     ipc::unix_client_socket client_socket(link);
 
     ipc::out_message out;
-    out << (uint32_t)simple_server_function_t::add_with_callbacks << ipc::message::remote_ptr<false>(args);
+    out << (uint32_t)simple_server_function_t::add_with_callbacks << ipc::message::remote_ptr<true>(args);
 
     auto predicate = []() { return true; };
     client_socket.write_message(out, predicate);
@@ -36,14 +36,14 @@ int32_t call_add_with_callbacks(add_args * args)
         {
         case simple_client_function_t::arg1:
         {
-            ipc::message::remote_ptr<false> p;
+            ipc::message::remote_ptr<true> p;
             in >> p;
             out << ((add_args*)p.get_pointer())->a;
             break;
         }
         case simple_client_function_t::arg2:
         {
-            ipc::message::remote_ptr<false> p;
+            ipc::message::remote_ptr<true> p;
             in >> p;
             out << ((add_args*)p.get_pointer())->b;
             break;
