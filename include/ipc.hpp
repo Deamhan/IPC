@@ -296,12 +296,17 @@ namespace ipc
                 typedef void* ptr_t;
             };
 
+#ifndef __DOXYGEN__
             template <>
             struct const_traits<true>
             {
                 typedef const void* ptr_t;
             };
+#endif // __DOXYGEN__
 
+            /**
+             * Helper alias that identifies internal pointer type.
+             */
             template <bool ConstPtr>
             using ptr_t = typename const_traits<ConstPtr>::ptr_t;
 
@@ -333,6 +338,7 @@ namespace ipc
         template <class T>
         struct trivial_type;
 
+#ifndef __DOXYGEN__
         template <>
         struct message::trivial_type<int32_t>
         {
@@ -368,6 +374,7 @@ namespace ipc
         {
             static const bool value = true;
         };
+#endif // __DOXYGEN__
 
         /**
          * \brief Resets internal state to ok.
@@ -401,6 +408,9 @@ namespace ipc
 
         bool m_ok;
         
+        /**
+         * \brief Helper structure that is used to get #type_tag of given type
+         */
         template <typename T> 
         struct tag_traits;
 
@@ -551,7 +561,7 @@ namespace ipc
          * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function 
          * will immediately return false and state of message will be invalid and must be reset.
          *
-         * \param raw message buffer (length and data, see ipc::Message)
+         * \param message raw message buffer (length and data, see ipc::Message)
          * \param predicate function of type bool() or similar callable object 
          * \return true if message has been read successfully.
          */
@@ -564,7 +574,7 @@ namespace ipc
          * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function 
          * will immediately return false and state of message will be invalid and must be reset.
          *
-         * \param message object
+         * \param message message object
          * \param predicate function of type bool() or similar callable object 
          * \return true if message has been read successfully.
          */
