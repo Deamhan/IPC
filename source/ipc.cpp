@@ -173,7 +173,7 @@ namespace ipc
     [[noreturn]] void ipc::throw_type_mismatch_exception(const char* func_name, const char* tag, const char* expected)
     {
         std::string msg(func_name);
-        msg.append(": data type mismatch (got ").append(tag).append(", expect").append(expected).append(")");
+        msg.append(": data type mismatch (got ").append(tag).append(", expect ").append(expected).append(")");
         throw type_mismach_exception(std::move(msg));
     }
 
