@@ -294,7 +294,17 @@ namespace ipc
         m_ok = true;
         m_offset = sizeof(__MSG_LENGTH_TYPE__);
     }
-    
+
+#if __MSG_USE_TAGS__
+    inline constexpr bool message::is_compatible_tags(type_tag source, type_tag target) noexcept
+    {
+        if (source == target)
+            return true;
+
+        return  (target == type_tag::const_remote_ptr && source == type_tag::remote_ptr);
+    }
+#endif // __MSG_USE_TAGS__
+
     template <message::type_tag Expected_tag, typename T, typename>
     inline in_message& in_message::pop(T& arg)
     {
@@ -314,7 +324,7 @@ namespace ipc
         {
 #if __MSG_USE_TAGS__
             message::type_tag tag = (message::type_tag)m_buffer[m_offset];
-            if (Expected_tag != tag)
+            if (is_compatible_tags(tag, Expected_tag))
                 fail_status(throw_type_mismatch_exception, m_ok, __FUNCTION_NAME__, to_string(tag), to_string(Expected_tag));
 
             ++m_offset;

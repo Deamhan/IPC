@@ -335,9 +335,10 @@ namespace ipc
             blob
         };
 
-#ifdef __AFUNIX_H__
+#ifdef __MSG_USE_TAGS__
         constexpr const char* to_string(type_tag t) noexcept;
-#endif //_AFUNIX_H__
+        constexpr bool is_compatible_tags(type_tag source, type_tag target) noexcept;
+#endif //__MSG_USE_TAGS__
 
         bool m_ok;
         

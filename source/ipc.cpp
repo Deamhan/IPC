@@ -193,7 +193,7 @@ namespace ipc
         throw container_overflow_exception(std::move(msg));
     }
 
-#ifdef __AFUNIX_H__
+#ifdef __MSG_USE_TAGS__
     constexpr const char* ipc::message::to_string(type_tag t) noexcept
     {
         switch (t)
@@ -220,7 +220,7 @@ namespace ipc
             return "unknown";
         }
     }
-#endif // __AFUNIX_H__
+#endif // __MSG_USE_TAGS__
 
     out_message& out_message::operator << (const std::string_view& s)
     {
