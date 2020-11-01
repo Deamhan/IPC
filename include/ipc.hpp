@@ -230,22 +230,39 @@ namespace ipc
          * Can't be used on another side, but can be used as callback parameter as context for example.
          * This wrapper can be used even between applications of different bitness.
          */
+        template <bool ConstPtr>
         class remote_ptr
         {
         public:
+
+            template <bool ConstPtr>
+            struct const_traits
+            {
+                typedef void* ptr_t;
+            };
+
+            template <>
+            struct const_traits<true>
+            {
+                typedef const void* ptr_t;
+            };
+
+            template <bool ConstPtr>
+            using ptr_t = typename const_traits<ConstPtr>::ptr_t;
+
             /**
              * \brief Extracts underlying pointer.
              *
              * \return raw pointer
              */
-            void* get_pointer() const noexcept { return (void*)(uintptr_t)m_ptr; } 
+            ptr_t<ConstPtr> get_pointer() const noexcept { return (void*)(uintptr_t)m_ptr; }
             
             /**
              * \brief Creates wrapper from raw pointer.
              *
              * \param p raw pointer
              */
-            explicit remote_ptr(void* p = nullptr) noexcept : m_ptr((uintptr_t)p) {} ///< 
+            explicit remote_ptr(ptr_t<ConstPtr> p = nullptr) noexcept : m_ptr((uintptr_t)p) {} ///< 
         protected:
             uint64_t m_ptr;
 
@@ -314,6 +331,7 @@ namespace ipc
             str,
             chr,
             remote_ptr,
+            const_remote_ptr,
             blob
         };
 
@@ -333,8 +351,11 @@ namespace ipc
         message(const message&) = delete;
         message& operator=(const message&) = delete;
 
-        uint64_t get_u64_ptr(const remote_ptr& p) const noexcept { return p.m_ptr; }
-        uint64_t& get_u64_ptr(remote_ptr& p) noexcept { return p.m_ptr; }
+        template <bool ConstPtr>
+        uint64_t get_u64_ptr(const remote_ptr<ConstPtr>& p) const noexcept { return p.m_ptr; }
+
+        template <bool ConstPtr>
+        uint64_t& get_u64_ptr(remote_ptr<ConstPtr>& p) noexcept { return p.m_ptr; }
     };
 
     /**
@@ -363,7 +384,8 @@ namespace ipc
          * \brief Serializes user's pointer to internal buffer.
          * \param p - pointer to serialize.
          */
-        out_message& operator << (const remote_ptr& p) { return push<type_tag::remote_ptr>(get_u64_ptr(p)); }
+        template <bool ConstPtr>
+        out_message& operator << (const remote_ptr<ConstPtr>& p) { return push<ConstPtr ? type_tag::const_remote_ptr : type_tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Serializes user's blob to internal buffer.
@@ -416,7 +438,8 @@ namespace ipc
          * \brief Deserializes remote pointer from internal buffer.
          * \param arg - extracted data.
          */
-        in_message& operator >> (remote_ptr& p) { return pop<type_tag::remote_ptr>(get_u64_ptr(p)); }
+        template <bool ConstPtr>
+        in_message& operator >> (remote_ptr<ConstPtr>& p) { return pop<ConstPtr ? type_tag::const_remote_ptr : type_tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Deserializes blob from internal buffer.

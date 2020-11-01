@@ -233,9 +233,15 @@ namespace ipc
     };
     
     template <>
-    struct message::tag_traits<message::remote_ptr>
+    struct message::tag_traits<message::remote_ptr<false>>
     {
         static const message::type_tag value = message::type_tag::remote_ptr;
+    };
+
+    template <>
+    struct message::tag_traits<message::remote_ptr<true>>
+    {
+        static const message::type_tag value = message::type_tag::const_remote_ptr;
     };
 
     [[noreturn]] void throw_message_overflow_exception(const char* func_name, size_t req_size, size_t total_size);
