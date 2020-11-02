@@ -7,6 +7,7 @@
  * with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
+#include <algorithm>
 #include <filesystem>
 #include <string.h>
 #include <thread>
@@ -68,8 +69,7 @@ namespace ipc
     }
 
 #ifdef __AFUNIX_H__
-    template <typename T, typename>
-    unix_server_socket::unix_server_socket(T&& socket_link) : m_link(std::forward<T>(socket_link))
+    unix_server_socket::unix_server_socket(std::string_view socket_link) : m_link(socket_link)
     {
         m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
         if (INVALID_SOCKET == m_socket)
@@ -88,9 +88,6 @@ namespace ipc
         if (listen(m_socket, 100) != 0)
             fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
     }
-
-    template unix_server_socket::unix_server_socket(const std::string&);
-    template unix_server_socket::unix_server_socket(std::string&&);
 
     void unix_server_socket::close() noexcept
     {
@@ -115,7 +112,7 @@ namespace ipc
 #endif
 
 #ifdef __AFUNIX_H__
-    unix_client_socket::unix_client_socket(const char* path) : point_to_point_socket(INVALID_SOCKET)
+    unix_client_socket::unix_client_socket(std::string_view path) : point_to_point_socket(INVALID_SOCKET)
     {
         m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
         if (INVALID_SOCKET == m_socket)
@@ -124,7 +121,7 @@ namespace ipc
         sockaddr_un serv_addr;
         serv_addr.sun_family = AF_UNIX;
 
-        if (!is_socket_exists(path))
+        if (!is_socket_exists(path.data()))
         {
 #ifdef _WIN32
             int ecode = ERROR_FILE_NOT_FOUND;
@@ -134,7 +131,7 @@ namespace ipc
             fail_status<socket_prepare_exception>(m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
         }
 
-        strncpy(serv_addr.sun_path, path, sizeof(serv_addr.sun_path));
+        strncpy(serv_addr.sun_path, path.data(), std::min<size_t>(sizeof(serv_addr.sun_path), path.size()));
 
         const int max_attempts_count = 10;
         int attempt = 0;

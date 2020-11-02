@@ -819,9 +819,9 @@ namespace ipc
         /**
           * \brief Tries to connect to UNIX socket \p path.
           *      
-          * \param path UNIX socket path
+          * \param path UNIX socket path (must be null terminated)
           */
-        explicit unix_client_socket(const char* path);
+        explicit unix_client_socket(std::string_view path);
     };
 #endif //__AFUNIX_H__
 
@@ -868,8 +868,7 @@ namespace ipc
          *      
          * \param path UNIX socket path
          */
-        template <typename T, typename = std::enable_if_t<std::is_same_v<std::string, std::remove_const_t<std::remove_reference_t<T>>>>>
-        explicit unix_server_socket(T&& path);
+        explicit unix_server_socket(std::string_view path);
         
         ~unix_server_socket() { close(); };
         void close() noexcept; ///< closes socket
