@@ -344,7 +344,15 @@ namespace ipc
     protected:
         bool m_ok; ///< internal state flag
         socket_t m_socket; ///< socket handle
-        explicit socket(socket_t socket);
+        
+        /**
+         * \brief Socket handle based constructor
+         *
+         * Acquired socket handle will be closed automatically on instance destruction (RAII)
+         *
+         * \param s socket handle
+         */
+        explicit socket(socket_t s);
     };
 
     /**
@@ -540,6 +548,8 @@ namespace ipc
          * \brief Serializes user's data of trivial type to internal buffer.
          * 
          * \param arg - data to serialize.
+         *
+         * \return message self reference 
          */
         template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
         out_message& operator << (T arg) { return push<tag_traits<T>::value>(arg); }
@@ -548,6 +558,8 @@ namespace ipc
          * \brief Serializes user's data of string type (std::string, const char*, std::string_view) to internal buffer.
          * 
          * \param s - string to serialize.
+         *
+         * \return message self reference 
          */
         out_message& operator << (const std::string_view& s);
         
@@ -555,6 +567,8 @@ namespace ipc
          * \brief Serializes user's pointer to internal buffer.
          * 
          * \param p - pointer to serialize.
+         *
+         * \return message self reference 
          */
         template <bool ConstPtr>
         out_message& operator << (const remote_ptr<ConstPtr>& p) { return push<ConstPtr ? type_tag::const_remote_ptr : type_tag::remote_ptr>(get_u64_ptr(p)); }
@@ -563,6 +577,8 @@ namespace ipc
          * \brief Serializes user's blob to internal buffer.
          * 
          * \param blob - blob to serialize.
+         *
+         * \return message self reference 
          */
         out_message& operator << (const std::pair<const uint8_t*, size_t>& blob);
         
@@ -571,6 +587,11 @@ namespace ipc
          */
         void clear() noexcept; 
         
+        /**
+         * \brief Default constructor
+         *
+         * Allocates buffer of minimal available size and clears object state.
+         */
         out_message() { clear(); }
         
         /**
@@ -603,6 +624,8 @@ namespace ipc
          * \brief Deserializes data of trivial type from internal buffer.
          * 
          * \param arg - extracted data.
+         *
+         * \return message self reference 
          */
         template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
         in_message& operator >> (T& arg) { return pop<tag_traits<T>::value>(arg); }
@@ -611,6 +634,8 @@ namespace ipc
          * \brief Deserializes string data from internal buffer.
          * 
          * \param arg - extracted data.
+         *
+         * \return message self reference 
          */
         in_message& operator >> (std::string& arg);
         
@@ -618,6 +643,8 @@ namespace ipc
          * \brief Deserializes remote pointer from internal buffer.
          * 
          * \param p - extracted pointer.
+         *
+         * \return message self reference 
          */
         template <bool ConstPtr>
         in_message& operator >> (remote_ptr<ConstPtr>& p) { return pop<ConstPtr ? type_tag::const_remote_ptr : type_tag::remote_ptr>(get_u64_ptr(p)); }
@@ -626,6 +653,8 @@ namespace ipc
          * \brief Deserializes blob from internal buffer.
          * 
          * \param blob - extracted data.
+         *
+         * \return message self reference 
          */
         in_message& operator >> (std::vector<uint8_t>& blob);
 
@@ -633,6 +662,8 @@ namespace ipc
          * \brief Deserializes blob from internal buffer. This version can be more performance efficient than previous one.
          * 
          * \param blob - extracted data. Array (first member of pair) must be long enough to store blob, second member will hold real blob size.
+         *
+         * \return message self reference 
          */
         template <size_t N>
         in_message& operator >> (std::pair<std::array<uint8_t, N>, size_t>& blob);
@@ -642,6 +673,11 @@ namespace ipc
          */
         void clear() noexcept;
         
+        /**
+         * \brief Default constructor
+         *
+         * Allocates buffer of max available size and clears object state.
+         */
         in_message() : m_buffer(get_max_size()) { clear(); }
         
         /**
@@ -681,6 +717,7 @@ namespace ipc
          *
          * \param message raw message buffer (length and data, see ipc::Message)
          * \param predicate function of type bool() or similar callable object 
+         *
          * \return true if message has been read successfully.
          */
         template<typename Predicate>
@@ -694,6 +731,7 @@ namespace ipc
          *
          * \param message message object
          * \param predicate function of type bool() or similar callable object 
+         *
          * \return true if message has been read successfully.
          */
         template<typename Predicate>
@@ -710,6 +748,7 @@ namespace ipc
           *
           * \param message object
           * \param predicate function of type bool() or similar callable object 
+          *
           * \return true if message writing has been started successfully
           */
         template<typename Predicate>
@@ -726,6 +765,7 @@ namespace ipc
           *
           * \param message object
           * \param predicate function of type bool() or similar callable object 
+          *
           * \return true if message writing has been started successfully
           */
         template<typename Predicate>
@@ -755,7 +795,14 @@ namespace ipc
     protected:
         typedef socket super; ///< super class typedef
 
-        explicit point_to_point_socket(socket_t s) : socket(s) {}
+        /**
+         * \brief Socket handle based constructor
+         *
+         * Acquired socket handle will be closed automatically (#shutdown will be called before it) on instance destruction (RAII)
+         *
+         * \param s socket handle
+         */
+        explicit point_to_point_socket(socket_t s) noexcept : socket(s) {}
 
         friend class server_socket;
     };
@@ -796,6 +843,12 @@ namespace ipc
         template<typename Predicate>
         point_to_point_socket accept(const Predicate& predicate);
     protected:
+        /**
+        * \brief Default constructor
+        *
+        * Creates server socket instance that initialized by INVALID_SOCKET
+        */
+    
         server_socket() noexcept : socket(INVALID_SOCKET) {}
 
         std::mutex m_lock; ///< mutex for accept requests synchronizing

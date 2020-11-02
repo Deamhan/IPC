@@ -79,6 +79,8 @@ namespace ipc
          *  callback id is got, false otherwise
          * \param predicate function of type bool() or similar callable object 
          * \param args remote service arguments
+         *
+         * \return result of remote call
          */
         template <uint32_t id, typename R, typename Dispatcher, typename Predicate, typename... Args>
         R call_by_link(const char * link, Dispatcher& dispatcher, const Predicate& predicate, const Args&... args);
@@ -95,6 +97,8 @@ namespace ipc
          * \param out_msg output message
          * \param predicate function of type bool() or similar callable object 
          * \param args remote service arguments
+         *
+         * \return result of remote call
          */
         template <uint32_t id, typename R, typename Predicate, typename... Args>
         R call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& predicate, const Args&... args);
@@ -108,12 +112,17 @@ namespace ipc
     class rpc_server
     {
     public:
+        /**
+         * \brief Creates remote procedure call handling server.
+         *
+         * \param path text identifier of a new server
+         */
         rpc_server(std::string_view path) : m_server_socket(std::string(path)) {}
 
         /**
          * \brief Enables remote calls processing.
          *
-         * This routine creates and runs thread pool workers, each of them accepts and processes incoming requests.
+         * This routine creates and runs thread pool workers, each of them accepts and processes incoming requests. After successful running of workers Dispatcher::ready callback will be called.
          *
          * \param dispatcher object that must have several methods:  invoke(uint32_t, ipc::in_message&, ipc::out_message&, ipc::point_to_point_socket&) const, void report_error(const std::exception&) const and void ready() const.
          * \param predicate predicate function (or function-like object) that allows user to stop worker threads.
@@ -122,10 +131,19 @@ namespace ipc
         void run(const Dispatcher& dispatcher, const Predicate& predicate);
 
     protected:
-        unix_server_socket m_server_socket;
+        unix_server_socket m_server_socket; ///< passive socket channel instance
 
+        /**
+         * \brief Thread pool worker routine.
+         *
+         * This routine accepts incomming connections, reads incoming messages, deserializes request code and forwars it to Dispatcher::invoke routine (in loop). After dispatching outcoming message will be sent back by #thread_proc.
+         * #thread_proc sets top level exception handler that forwards exceptions to Dispatcher::report_error as std::exception referenses. 
+         *
+         * \param dispatcher object that must have several methods:  invoke(uint32_t, ipc::in_message&, ipc::out_message&, ipc::point_to_point_socket&) const, void report_error(const std::exception&) const and void ready() const.
+         * \param predicate predicate function (or function-like object) that allows user to stop worker threads.
+         */
         template <typename Dispatcher, typename Predicate>
-        void thread_proc(const Dispatcher* d, const Predicate* predicate);
+        void thread_proc(const Dispatcher* dispatcher, const Predicate* predicate);
     };
 }
 
