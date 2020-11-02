@@ -89,9 +89,15 @@ namespace ipc
      */
     class channel_exception : public std::system_error
     {
-    protected:
+    protected:  
+        /**
+        * \brief exception constructor
+        * 
+        * \param code exception code (errno or last error on Windows)
+        * \param message exception message
+        */
         template <class T>
-        explicit channel_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
+        channel_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
     };
 
     /**
@@ -100,8 +106,14 @@ namespace ipc
     class socket_api_failed_exception : public std::system_error
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param code exception code (errno or last error on Windows)
+         * \param message exception message
+         */
         template <class T>
-        explicit socket_api_failed_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
+        socket_api_failed_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
     };
 
     /**
@@ -112,6 +124,11 @@ namespace ipc
     class bad_channel_exception : public std::logic_error
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
         template <class T>
         explicit bad_channel_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
@@ -124,6 +141,11 @@ namespace ipc
     class user_stop_request_exception : public std::logic_error
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
         template <class T>
         explicit user_stop_request_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
@@ -136,6 +158,11 @@ namespace ipc
     class container_overflow_exception : public std::logic_error
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
         template <class T>
         explicit container_overflow_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
@@ -146,6 +173,11 @@ namespace ipc
     class message_format_exception : public std::logic_error
     {
     protected:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
         template <class T>
         explicit message_format_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
@@ -158,6 +190,11 @@ namespace ipc
     class type_mismach_exception : public message_format_exception
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
         template <class T>
         explicit type_mismach_exception(T&& message) : message_format_exception(std::forward<T>(message)) {}
     };
@@ -168,6 +205,11 @@ namespace ipc
     class message_too_short_exception : public message_format_exception
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
         template <class T>
         explicit message_too_short_exception(T&& message) : message_format_exception(std::forward<T>(message)) {}
     };
@@ -180,6 +222,11 @@ namespace ipc
     class bad_message_exception : public std::logic_error
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
         template <class T>
         explicit bad_message_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
@@ -192,6 +239,11 @@ namespace ipc
     class message_overflow_exception : public std::logic_error
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
         template <class T>
         explicit message_overflow_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
@@ -202,8 +254,14 @@ namespace ipc
     class channel_read_exception : public channel_exception
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param code exception code (errno or last error on Windows)
+         * \param message exception message
+         */
         template <class T>
-        explicit channel_read_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
+        channel_read_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -212,8 +270,14 @@ namespace ipc
     class channel_write_exception : public channel_exception
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param code exception code (errno or last error on Windows)
+         * \param message exception message
+         */
         template <class T>
-        explicit channel_write_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
+        channel_write_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -222,8 +286,14 @@ namespace ipc
     class passive_socket_exception : public channel_exception
     {
     protected:
+        /**
+         * \brief exception constructor
+         *
+         * \param code exception code (errno or last error on Windows)
+         * \param message exception message
+         */
         template <class T>
-        explicit passive_socket_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
+        passive_socket_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -232,8 +302,14 @@ namespace ipc
     class socket_prepare_exception : public passive_socket_exception
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param code exception code (errno or last error on Windows)
+         * \param message exception message
+         */
         template <class T>
-        explicit socket_prepare_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
+        socket_prepare_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -242,8 +318,14 @@ namespace ipc
     class socket_accept_exception : public passive_socket_exception
     {
     public:
+        /**
+         * \brief exception constructor
+         *
+         * \param code exception code (errno or last error on Windows)
+         * \param message exception message
+         */
         template <class T>
-        explicit socket_accept_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
+        socket_accept_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -260,8 +342,8 @@ namespace ipc
         void close() noexcept; ///< closes socket
         ~socket() { close(); }
     protected:
-        bool m_ok;
-        socket_t m_socket;
+        bool m_ok; ///< internal state flag
+        socket_t m_socket; ///< socket handle
         explicit socket(socket_t socket);
     };
 
@@ -344,7 +426,7 @@ namespace ipc
             template <bool ConstPointer, typename T>
             struct const_traits
             {
-                typedef T* ptr_t;
+                typedef T* ptr_t; ///< pointer type
             };
 
 #ifndef __DOXYGEN__
@@ -375,7 +457,7 @@ namespace ipc
              */
             explicit remote_ptr(ptr_t<ConstPtr, void> p = nullptr) noexcept : m_ptr((uintptr_t)p) {} ///<
         protected:
-            uint64_t m_ptr;
+            uint64_t m_ptr; ///< pointer bitwise portable storage
 
             friend class message;
         };
@@ -409,11 +491,11 @@ namespace ipc
         };
 
 #ifdef __MSG_USE_TAGS__
-        const char* to_string(type_tag t) noexcept;
-        constexpr bool is_compatible_tags(type_tag source, type_tag target) noexcept;
+        const char* to_string(type_tag t) noexcept; ///< gets text representation of tag
+        constexpr bool is_compatible_tags(type_tag source, type_tag target) noexcept; ///< checks tags deserializing compatibility
 #endif //__MSG_USE_TAGS__
 
-        bool m_ok;
+        bool m_ok; ///< internal state flag
         
         /**
          * \brief Helper structure that is used to get #type_tag of given type
@@ -428,9 +510,19 @@ namespace ipc
         message(const message&) = delete;
         message& operator=(const message&) = delete;
 
+        /**
+         * \brief Gets ipc::remote_ptr<ConstPtr> internal storage value.
+         *
+         * \param p remote pointer object
+         */
         template <bool ConstPtr>
         uint64_t get_u64_ptr(const remote_ptr<ConstPtr>& p) const noexcept { return p.m_ptr; }
 
+        /**
+         * \brief Gets ipc::remote_ptr<ConstPtr> internal storage reference.
+         *
+         * \param p remote pointer object
+         */
         template <bool ConstPtr>
         uint64_t& get_u64_ptr(remote_ptr<ConstPtr>& p) noexcept { return p.m_ptr; }
     };
@@ -445,7 +537,8 @@ namespace ipc
     {
     public:
         /**
-         * \brief Serializes user's data of arithmetic type to internal buffer.
+         * \brief Serializes user's data of trivial type to internal buffer.
+         * 
          * \param arg - data to serialize.
          */
         template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
@@ -453,12 +546,14 @@ namespace ipc
 
         /**
          * \brief Serializes user's data of string type (std::string, const char*, std::string_view) to internal buffer.
+         * 
          * \param s - string to serialize.
          */
         out_message& operator << (const std::string_view& s);
         
         /**
          * \brief Serializes user's pointer to internal buffer.
+         * 
          * \param p - pointer to serialize.
          */
         template <bool ConstPtr>
@@ -466,6 +561,7 @@ namespace ipc
         
         /**
          * \brief Serializes user's blob to internal buffer.
+         * 
          * \param blob - blob to serialize.
          */
         out_message& operator << (const std::pair<const uint8_t*, size_t>& blob);
@@ -483,10 +579,15 @@ namespace ipc
         const std::vector<char>& get_data() const noexcept { return m_buffer; }
         
     protected:
+        /**
+          * \brief Serializes user's data of trivial type to internal buffer with custo tag.
+          *
+          * \param arg - data to serialize.
+          */
         template <type_tag Tag, typename T, typename = std::enable_if_t<trivial_type<T>::value>>
         out_message& push(T arg);
         
-        std::vector<char> m_buffer;
+        std::vector<char> m_buffer; ///< internal message buffer
     };
 
     /**
@@ -499,7 +600,8 @@ namespace ipc
     {
     public:
         /**
-         * \brief Deserializes data of arithmetic type from internal buffer.
+         * \brief Deserializes data of trivial type from internal buffer.
+         * 
          * \param arg - extracted data.
          */
         template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
@@ -507,26 +609,30 @@ namespace ipc
 
         /**
          * \brief Deserializes string data from internal buffer.
+         * 
          * \param arg - extracted data.
          */
         in_message& operator >> (std::string& arg);
         
         /**
          * \brief Deserializes remote pointer from internal buffer.
-         * \param arg - extracted data.
+         * 
+         * \param p - extracted pointer.
          */
         template <bool ConstPtr>
         in_message& operator >> (remote_ptr<ConstPtr>& p) { return pop<ConstPtr ? type_tag::const_remote_ptr : type_tag::remote_ptr>(get_u64_ptr(p)); }
         
         /**
          * \brief Deserializes blob from internal buffer.
-         * \param arg - extracted data.
+         * 
+         * \param blob - extracted data.
          */
         in_message& operator >> (std::vector<uint8_t>& blob);
 
         /**
          * \brief Deserializes blob from internal buffer. This version can be more performance efficient than previous one.
-         * \param arg - extracted data. Array (first member of pair) must be long enough to store blob, second member will hold real blob size.
+         * 
+         * \param blob - extracted data. Array (first member of pair) must be long enough to store blob, second member will hold real blob size.
          */
         template <size_t N>
         in_message& operator >> (std::pair<std::array<uint8_t, N>, size_t>& blob);
@@ -544,11 +650,16 @@ namespace ipc
         std::vector<char>& get_data() noexcept { return m_buffer; }
 
     protected:
+        /**
+         * \brief Deserializes data of trivial type from internal buffer (with custom tag checking).
+         * 
+         * \param arg - extracted data.
+         */
         template <type_tag Tag, typename T, typename = std::enable_if_t<trivial_type<T>::value>>
         in_message& pop(T& arg);
 
-        std::vector<char> m_buffer;
-        size_t m_offset;
+        std::vector<char> m_buffer; ///< internal message buffer
+        size_t m_offset; ///< current reading offset in #m_buffer
     };
 
     class server_socket;
@@ -642,7 +753,7 @@ namespace ipc
 
         ~point_to_point_socket() { shutdown(); }
     protected:
-        typedef socket super;
+        typedef socket super; ///< super class typedef
 
         explicit point_to_point_socket(socket_t s) : socket(s) {}
 
@@ -687,7 +798,7 @@ namespace ipc
     protected:
         server_socket() noexcept : socket(INVALID_SOCKET) {}
 
-        std::mutex m_lock;
+        std::mutex m_lock; ///< mutex for accept requests synchronizing
     };
 
 #ifdef __AFUNIX_H__
@@ -710,8 +821,8 @@ namespace ipc
         ~unix_server_socket() { close(); };
         void close() noexcept; ///< closes socket
     protected:
-        typedef server_socket super;
-        std::string m_link;
+        typedef server_socket super; ///< super class typedef
+        std::string m_link; ///< server text identifier
     };
 #endif //__AFUNIX_H__
 }

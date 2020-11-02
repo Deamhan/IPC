@@ -91,13 +91,13 @@ namespace ipc
          * \tparam id identifier of remote function
          * \tparam R return value type
          * \param socket established connection
-         * \param dispatcher dispatcher routine (or function-like object) compatible with bool(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg). This function should return true if known 
-         *  callback id is got, false otherwise
+         * \param in_msg input message
+         * \param out_msg output message
          * \param predicate function of type bool() or similar callable object 
          * \param args remote service arguments
          */
         template <uint32_t id, typename R, typename Predicate, typename... Args>
-        R call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& pred, const Args&... args);
+        R call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& predicate, const Args&... args);
     };
 
     /**
