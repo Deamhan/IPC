@@ -8,7 +8,7 @@
 
 #include "simple-rpc-common.hpp"
 
-static void clearSignalHandlers() noexcept
+static void clear_signal_handlers() noexcept
 {
     signal(SIGINT, SIG_IGN);
 #ifdef _WIN32
@@ -20,7 +20,7 @@ static void clearSignalHandlers() noexcept
     signal(SIGTERM, SIG_IGN);
 }
 
-static void installSignalHandlers(void(*handler)(int)) noexcept
+static void install_signal_handlers(void(*handler)(int)) noexcept
 {
     signal(SIGINT, handler);
 #ifdef _WIN32
@@ -34,9 +34,9 @@ static void installSignalHandlers(void(*handler)(int)) noexcept
 
 static std::atomic<bool> g_stop = false;
 
-static void ctrlBreakHandler(int /*signum*/) noexcept
+static void signal_handler(int /*signum*/) noexcept
 {
-    clearSignalHandlers();
+    clear_signal_handlers();
     g_stop = true;
 }
 
@@ -82,10 +82,9 @@ int main()
     try
     {
         std::setlocale(LC_ALL, "");
-        installSignalHandlers(ctrlBreakHandler);
+        install_signal_handlers(signal_handler);
 
-        const char * link = "foo";
-        ipc::rpc_server server(link);
+        ipc::rpc_server server("foo");
         server.run(dispatcher(), predicate);
     }
     catch(const std::exception& ex) 
