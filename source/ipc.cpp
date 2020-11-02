@@ -162,7 +162,7 @@ namespace ipc
 
 #endif //__AFUNIX_H__
 
-    [[noreturn]] void ipc::throw_message_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
+    [[noreturn]] void throw_message_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
     {
         std::string msg(func_name);
         msg.append(": required space ").append(std::to_string(req_size));
@@ -170,7 +170,7 @@ namespace ipc
         throw message_overflow_exception(std::move(msg));
     }
 
-    [[noreturn]] void ipc::throw_type_mismatch_exception(const char* func_name, const char* tag, const char* expected)
+    [[noreturn]] void throw_type_mismatch_exception(const char* func_name, const char* tag, const char* expected)
     {
         std::string msg(func_name);
         msg.append(": data type mismatch (got ").append(tag).append(", expect ").append(expected).append(")");
@@ -185,7 +185,7 @@ namespace ipc
         throw message_too_short_exception(std::move(msg));
     }
 
-    [[noreturn]] void ipc::throw_container_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
+    [[noreturn]] void throw_container_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
     {
         std::string msg(func_name);
         msg.append(": required space ").append(std::to_string(req_size));
@@ -193,8 +193,8 @@ namespace ipc
         throw container_overflow_exception(std::move(msg));
     }
 
-#ifdef __MSG_USE_TAGS__
-    constexpr const char* ipc::message::to_string(type_tag t) noexcept
+#if __MSG_USE_TAGS__
+    const char* ipc::message::to_string(type_tag t) noexcept
     {
         switch (t)
         {

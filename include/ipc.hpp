@@ -266,6 +266,57 @@ namespace ipc
     };
 
     /**
+     * \brief Helper structure that is used to check 'triviality' of type.
+     *
+     * use trivial_type::value bool constant to check 'triviality'.
+     *
+     * \tparam T type to check
+     */
+    template <class T>
+    struct trivial_type
+    {
+        static const bool value = false; ///< check result
+    };
+
+#ifndef __DOXYGEN__
+    template <>
+    struct trivial_type<int32_t>
+    {
+        static const bool value = true;
+    };
+
+    template <>
+    struct trivial_type<uint32_t>
+    {
+        static const bool value = true;
+    };
+
+    template <>
+    struct trivial_type<int64_t>
+    {
+        static const bool value = true;
+    };
+
+    template <>
+    struct trivial_type<uint64_t>
+    {
+        static const bool value = true;
+    };
+
+    template <>
+    struct trivial_type<double>
+    {
+        static const bool value = true;
+    };
+
+    template <>
+    struct trivial_type<char>
+    {
+        static const bool value = true;
+    };
+#endif // __DOXYGEN__
+
+    /**
      * \brief Base class for all messages hierarchy.
      *
      * Message is memory buffer with some kind of serialized data. Message buffer starts with size which type is __MSG_LENGTH_TYPE__ .
@@ -290,39 +341,39 @@ namespace ipc
            /**
             * \brief Helper structure that identifies internal pointer type.
             */
-            template <bool ConstPtr>
+            template <bool ConstPointer, typename T>
             struct const_traits
             {
-                typedef void* ptr_t;
+                typedef T* ptr_t;
             };
 
 #ifndef __DOXYGEN__
-            template <>
-            struct const_traits<true>
+            template <typename T>
+            struct const_traits<true, T>
             {
-                typedef const void* ptr_t;
+                typedef const T* ptr_t;
             };
 #endif // __DOXYGEN__
 
             /**
              * Helper alias that identifies internal pointer type.
              */
-            template <bool ConstPtr>
-            using ptr_t = typename const_traits<ConstPtr>::ptr_t;
+            template <bool ConstPointer, typename T>
+            using ptr_t = typename const_traits<ConstPointer, T>::ptr_t;
 
             /**
              * \brief Extracts underlying pointer.
              *
              * \return raw pointer
              */
-            ptr_t<ConstPtr> get_pointer() const noexcept { return (void*)(uintptr_t)m_ptr; }
+            ptr_t<ConstPtr, void> get_pointer() const noexcept { return (ptr_t<ConstPtr, void>)(uintptr_t)m_ptr; }
             
             /**
              * \brief Creates wrapper from raw pointer.
              *
              * \param p raw pointer
              */
-            explicit remote_ptr(ptr_t<ConstPtr> p = nullptr) noexcept : m_ptr((uintptr_t)p) {} ///< 
+            explicit remote_ptr(ptr_t<ConstPtr, void> p = nullptr) noexcept : m_ptr((uintptr_t)p) {} ///<
         protected:
             uint64_t m_ptr;
 
@@ -331,50 +382,6 @@ namespace ipc
 
         constexpr size_t get_max_size() const { return msg_max_length; } ///< returns max available message buffer size
         operator bool() const noexcept { return m_ok; } ///< checks message state
-
-        /**
-         * \brief Helper structure that is used to check 'triviality' of type.
-         */
-        template <class T>
-        struct trivial_type;
-
-#ifndef __DOXYGEN__
-        template <>
-        struct message::trivial_type<int32_t>
-        {
-            static const bool value = true;
-        };
-
-        template <>
-        struct message::trivial_type<uint32_t>
-        {
-            static const bool value = true;
-        };
-
-        template <>
-        struct message::trivial_type<int64_t>
-        {
-            static const bool value = true;
-        };
-
-        template <>
-        struct message::trivial_type<uint64_t>
-        {
-            static const bool value = true;
-        };
-
-        template <>
-        struct message::trivial_type<double>
-        {
-            static const bool value = true;
-        };
-
-        template <>
-        struct message::trivial_type<char>
-        {
-            static const bool value = true;
-        };
-#endif // __DOXYGEN__
 
         /**
          * \brief Resets internal state to ok.
@@ -402,7 +409,7 @@ namespace ipc
         };
 
 #ifdef __MSG_USE_TAGS__
-        constexpr const char* to_string(type_tag t) noexcept;
+        const char* to_string(type_tag t) noexcept;
         constexpr bool is_compatible_tags(type_tag source, type_tag target) noexcept;
 #endif //__MSG_USE_TAGS__
 
@@ -637,7 +644,7 @@ namespace ipc
     protected:
         typedef socket super;
 
-        explicit point_to_point_socket(socket_t socket) : socket(socket) {}
+        explicit point_to_point_socket(socket_t s) : socket(s) {}
 
         friend class server_socket;
     };

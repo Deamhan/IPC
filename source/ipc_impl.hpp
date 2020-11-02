@@ -363,12 +363,12 @@ namespace ipc
         const size_t delta = sizeof(__MSG_LENGTH_TYPE__);
 #endif // __MSG_USE_TAGS__
         if (size < m_offset + delta)
-            return fail_status(throw_message_too_short_exception, m_ok, __FUNCTION_NAME__, m_offset + delta, size);
+            fail_status(throw_message_too_short_exception, m_ok, __FUNCTION_NAME__, m_offset + delta, size);
 
 #if __MSG_USE_TAGS__
         type_tag tag = (type_tag)m_buffer[m_offset];
         if (tag != type_tag::blob)
-            return fail_status(throw_type_mismatch_exception, m_ok, __FUNCTION_NAME__, to_string(tag), to_string(type_tag::blob));
+            fail_status(throw_type_mismatch_exception, m_ok, __FUNCTION_NAME__, to_string(tag), to_string(type_tag::blob));
 
         ++m_offset;
 #endif // __MSG_USE_TAGS__
@@ -377,10 +377,10 @@ namespace ipc
         m_offset += sizeof(__MSG_LENGTH_TYPE__);
 
         if (size < m_offset + blob_len)
-            return fail_status(throw_message_too_short_exception, m_ok, __FUNCTION_NAME__, m_offset + blob_len, size);
+            fail_status(throw_message_too_short_exception, m_ok, __FUNCTION_NAME__, m_offset + blob_len, size);
 
         if (blob_len > N)
-            return fail_status(throw_container_overflow_exception, m_ok, __FUNCTION_NAME__, blob_len, N);
+            fail_status(throw_container_overflow_exception, m_ok, __FUNCTION_NAME__, blob_len, N);
 
         if (blob_len != 0)
         {
