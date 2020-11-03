@@ -15,7 +15,7 @@ To start use of IPC library by message based method include <i>ipc.hpp</i> to yo
 First of all we must create listening socket, let it be an instance of ipc::unix_server_socket.
 
 \code{.cpp}
-    ipc::unix_server_socket server_socket("foo");
+    ipc::tcp_server_socket server_socket(port);
 \endcode
 
 Now we are ready to process incoming connections, but first we will discuss two message classes: ipc::in_message and ipc::out_message. This classes allows us 'out of the box' to serialize several 'primitive' types in stream manner. This 'primitive' types are:
@@ -89,7 +89,7 @@ Client application is even more simple. We should connect to server and interrac
 \code{.cpp}
 try
 {
-    ipc::unix_client_socket client_socket("foo");
+    ipc::tcp_client_socket client_socket(host, port);
     ipc::out_message out;
     const char * req_text = "request";
     out << req_text;
@@ -125,7 +125,7 @@ try
     std::setlocale(LC_ALL, "");
     install_signal_handlers(); // we should stop if user press Crtl-C for example 
 
-    ipc::rpc_server server("foo");
+    ipc::rpc_server<ipc::tcp_server_socket> server(port);
     server.run(dispatcher(), predicate);
     
     std::cout << "good bye" << std::endl;
@@ -218,7 +218,7 @@ static bool minimal_dispatch(uint32_t id, ipc::in_message& in_msg, ipc::out_mess
     return false;
 }
 
-static auto minimal_predicate = []() { return true; }; //bad practice, just an example
+static auto minimal_predicate = []() { return true; }; // bad practice, just an example
 
 int main()
 {
@@ -227,11 +227,11 @@ int main()
         std::setlocale(LC_ALL, "");
 
         add_args args = { 3, 4 };
-        auto result = ipc::service_invoker().call_by_link<(uint32_t)simple_server_function_t::add_with_callbacks, int32_t>("foo", dispatch, minimal_predicate, ipc::message::remote_ptr<true>(&args));
+        auto result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add_with_callbacks, int32_t>(std::tuple{ host, port }, dispatch, minimal_predicate, ipc::message::remote_ptr<true>(&args));
         std::cout << "add(" << args.a << ", " << args.b << ") = " << result << std::endl;
 
         int32_t a = 7, b = 8;
-        result = ipc::service_invoker().call_by_link<(uint32_t)simple_server_function_t::add, int32_t>("foo", minimal_dispatch, minimal_predicate, a, b);
+        result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add, int32_t>(std::tuple{ host, port }, minimal_dispatch, minimal_predicate, a, b);
         std::cout << "add(" << a << ", " << b << ") = " << result << std::endl;
 
         return 0;
@@ -244,7 +244,7 @@ int main()
 }
 \endcode
 
-ipc::service_invoker().call_by_link requires dispatch function (or functor): it handles callbacks from server to client. If there is no callback this routine can return false for any request, but is better to check identifier for ipc::function_invoker_base::done_tag equality and process any other code as error.
+ipc::service_invoker::call_by_address requires dispatch function (or functor): it handles callbacks from server to client. If there is no callback this routine can return false for any request, but is better to check identifier for ipc::function_invoker_base::done_tag equality and process any other code as error.
 
 That's all about RPC based communication for now. For more info you can see <i>examples/simple-rpc-server.cpp</i> and <i>examples/simple-rpc-client.cpp</i>. They have the same functionality as message based samples and can be swapped with them.
 
