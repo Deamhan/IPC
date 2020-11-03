@@ -91,7 +91,7 @@ namespace ipc
     {
     protected:  
         /**
-        * \brief exception constructor
+        * \brief Exception constructor
         * 
         * \param code exception code (errno or last error on Windows)
         * \param message exception message
@@ -107,7 +107,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param code exception code (errno or last error on Windows)
          * \param message exception message
@@ -125,7 +125,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param message exception message
          */
@@ -142,7 +142,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param message exception message
          */
@@ -159,7 +159,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param message exception message
          */
@@ -174,7 +174,7 @@ namespace ipc
     {
     protected:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param message exception message
          */
@@ -191,7 +191,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param message exception message
          */
@@ -206,7 +206,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param message exception message
          */
@@ -216,19 +216,34 @@ namespace ipc
 
     /**
      * \brief Exception that was caused by use of failed message.
-     * 
+     *
      * After any kind of exception message internal state becomes "failed" and it should be cleared by ipc::message::reset_fail_state or by full message reset. Otherwise bad_message_exception will be thrown.
      */
     class bad_message_exception : public std::logic_error
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param message exception message
          */
         template <class T>
         explicit bad_message_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+    };
+
+    /**
+     * \brief  Exception that will be thrown if hostname translation result is not IP address.
+     */
+    class bad_hostname_exception : public std::logic_error
+    {
+    public:
+        /**
+         * \brief Exception constructor
+         *
+         * \param message exception message
+         */
+        template <class T>
+        explicit bad_hostname_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -255,7 +270,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param code exception code (errno or last error on Windows)
          * \param message exception message
@@ -271,7 +286,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param code exception code (errno or last error on Windows)
          * \param message exception message
@@ -287,7 +302,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param code exception code (errno or last error on Windows)
          * \param message exception message
@@ -303,7 +318,7 @@ namespace ipc
     {
     protected:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param code exception code (errno or last error on Windows)
          * \param message exception message
@@ -319,7 +334,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param code exception code (errno or last error on Windows)
          * \param message exception message
@@ -335,7 +350,7 @@ namespace ipc
     {
     public:
         /**
-         * \brief exception constructor
+         * \brief Exception constructor
          *
          * \param code exception code (errno or last error on Windows)
          * \param message exception message
@@ -824,9 +839,31 @@ namespace ipc
     };
 
     /**
+     * \brief Helper class for building client sockets.
+     */
+    class client_socket : public point_to_point_socket
+    {
+    protected:
+        /**
+         * \brief Socket handle based constructor. Just forwards \p s to ipc::point_to_point_socket constructor.
+         *
+         * \param s socket handle
+         */
+        client_socket(socket_t s) noexcept : point_to_point_socket(s) {}
+
+        /**
+         * \brief Establishes connection to the server
+         *
+         * \param address filled sockaddr compatible structure
+         * \param size size of structure pointed by address
+         */
+        void connect_proc(const sockaddr* address, size_t size);
+    };
+
+    /**
      * \brief Client side of bidirectional data channel based on TCP sockets.
      */
-    class tcp_client_socket : public point_to_point_socket
+    class tcp_client_socket : public client_socket
     {
     public:
         /**
@@ -848,6 +885,8 @@ namespace ipc
 
     private:
         void connect_proc(uint32_t address, uint16_t port);
+
+        typedef client_socket super; ///< super class typedef
     };
 
 #ifdef __AFUNIX_H__
@@ -856,7 +895,7 @@ namespace ipc
      * 
      * \warning Unix sockets available on Windows only since Windows 10 build 17063
      */
-    class unix_client_socket : public point_to_point_socket
+    class unix_client_socket : public client_socket
     {
     public:
         /**
@@ -865,6 +904,9 @@ namespace ipc
           * \param path UNIX socket path (must be null terminated)
           */
         explicit unix_client_socket(std::string_view path);
+
+    private:
+        typedef client_socket super; ///< super class typedef
     };
 #endif //__AFUNIX_H__
 

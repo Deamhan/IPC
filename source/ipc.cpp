@@ -14,6 +14,7 @@
 
 #ifdef __unix__
 #include <arpa/inet.h>
+#include <netdb.h>
 #endif 
 
 #include "../include/ipc.hpp"
@@ -123,20 +124,11 @@ namespace ipc
 
 #endif //__AFUNIX_H__
 
-    void tcp_client_socket::connect_proc(uint32_t address, uint16_t port)
+    void client_socket::connect_proc(const sockaddr* address, size_t size)
     {
-        m_socket = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (INVALID_SOCKET == m_socket)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
-
-        sockaddr_in serv_addr = {};
-        serv_addr.sin_family = AF_INET;
-        serv_addr.sin_port = htons(port);
-        serv_addr.sin_addr.s_addr = htonl(address);
-
         const int max_attempts_count = 10;
         int attempt = 0;
-        for (; attempt < max_attempts_count && connect(m_socket, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0; ++attempt)
+        for (; attempt < max_attempts_count && connect(m_socket, address, size) < 0; ++attempt)
         {
             int err_code = get_socket_error();
 #ifdef _WIN32
@@ -158,19 +150,39 @@ namespace ipc
             fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
     }
 
-    tcp_client_socket::tcp_client_socket(uint32_t address, uint16_t port) : point_to_point_socket(INVALID_SOCKET)
+    void tcp_client_socket::connect_proc(uint32_t address, uint16_t port)
+    {
+        m_socket = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (INVALID_SOCKET == m_socket)
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+
+        sockaddr_in serv_addr = {};
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_port = htons(port);
+        serv_addr.sin_addr.s_addr = htonl(address);
+
+        super::connect_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
+    }
+
+    tcp_client_socket::tcp_client_socket(uint32_t address, uint16_t port) : client_socket(INVALID_SOCKET)
     {
         connect_proc(address, port);
     }
 
-    tcp_client_socket::tcp_client_socket(std::string_view address, uint16_t port) : point_to_point_socket(INVALID_SOCKET)
+#ifdef _WIN32
+    static inline int get_h_socket_error() noexcept { return WSAGetLastError(); }
+#else
+    static inline int get_h_socket_error() noexcept { return h_errno; }
+#endif // _WIN32
+
+    tcp_client_socket::tcp_client_socket(std::string_view address, uint16_t port) : client_socket(INVALID_SOCKET)
     {
         auto info = gethostbyname(address.data());
         if (info == nullptr)
-            fail_status<name_to_address_translation_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to get information about host");
+            fail_status<name_to_address_translation_exception>(m_ok, get_h_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to get information about host");
             
         if (info->h_addrtype != AF_INET || info->h_addr_list[0] == nullptr)
-            fail_status<name_to_address_translation_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to get information about host IP address");
+            fail_status<bad_hostname_exception>(m_ok, std::string(__FUNCTION_NAME__) + ": unable to get information about host IP address");
 
         connect_proc(ntohl(*(u_long*)info->h_addr_list[0]), port);
     }
@@ -189,14 +201,11 @@ namespace ipc
 #endif
 
 #ifdef __AFUNIX_H__
-    unix_client_socket::unix_client_socket(std::string_view path) : point_to_point_socket(INVALID_SOCKET)
+    unix_client_socket::unix_client_socket(std::string_view path) : client_socket(INVALID_SOCKET)
     {
         m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
         if (INVALID_SOCKET == m_socket)
             fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
-
-        sockaddr_un serv_addr;
-        serv_addr.sun_family = AF_UNIX;
 
         if (!is_socket_exists(path.data()))
         {
@@ -208,30 +217,11 @@ namespace ipc
             fail_status<socket_prepare_exception>(m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
         }
 
+        sockaddr_un serv_addr;
+        serv_addr.sun_family = AF_UNIX;
         strncpy(serv_addr.sun_path, path.data(), std::min<size_t>(sizeof(serv_addr.sun_path), path.size()));
 
-        const int max_attempts_count = 10;
-        int attempt = 0;
-        for (; attempt < max_attempts_count && connect(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) < 0; ++attempt)
-        {
-            int err_code = get_socket_error();
-#ifdef _WIN32
-            if (err_code == WSAECONNREFUSED)
-#else
-            if (err_code == EAGAIN || err_code == ECONNREFUSED || err_code == EINPROGRESS)
-#endif
-            {
-                std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO: fix me
-            }
-            else
-                fail_status<socket_prepare_exception>(m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
-        }
-
-        if (attempt == max_attempts_count)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
-
-        if (!set_non_blocking_mode(m_socket))
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+        super::connect_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path));
     }
 
 #endif //__AFUNIX_H__
