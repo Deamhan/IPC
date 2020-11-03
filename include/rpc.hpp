@@ -1,15 +1,20 @@
 /**
- * Lightweight inter process communication library
- * Copyright (C) 2020 Pavel Kovalenko 
+ * \file rpc.hpp
  *
- * This Source Code Form is subject to the terms of the Mozilla
- * Public License, v. 2.0. If a copy of the MPL was not distributed
+ * \brief Additional IPC library components (RPC). 
+ *
+ * \copyright Copyright (C) 2020 Pavel Kovalenko. All rights reserved.<br>
+ * <br>
+ * This Source Code Form is subject to the terms of the Mozilla<br>
+ * Public License, v. 2.0. If a copy of the MPL was not distributed<br>
  * with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-*/
+ */
 
 #pragma once
 
+#ifndef __DOXYGEN__
 #include  <thread>
+#endif // __DOXYGEN__
 
 #include "ipc.hpp"
 
@@ -118,7 +123,7 @@ namespace ipc
         /**
          * \brief Creates remote procedure call handling server.
          *
-         * \param path text identifier of a new server
+         * \param args info for socket creation
          */
         template <typename... Args>
         rpc_server(const Args&... args) : m_server_socket(args...) {}
@@ -151,4 +156,6 @@ namespace ipc
     };
 }
 
+#ifndef __DOXYGEN__
 #include "../source/rpc_impl.hpp"
+#endif // __DOXYGEN__

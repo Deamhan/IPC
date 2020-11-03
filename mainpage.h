@@ -116,7 +116,7 @@ That's all about message based communication for now. For more info you can see 
 \page page2 RPC based communication
 To start use of IPC library by RPC based method include <i>rpc.hpp</i> to your source and add <i>ipc.cpp</i> to your project (for both server and client). In addition to this files I recommend you to create additional header with functions and callbacks identification enumerations.
 
-\section server Server application
+\section rpcserver Server application
 Now we will discuss server example. It implements two methods of addition: with and without callbacks. Main part of RPC server - running ipc::rpc_server instance. Lets create and run it:
 
 \code{.cpp}
@@ -187,7 +187,7 @@ ipc::service_invoker do another thing: it calles remote service (service on clie
 
 There is only one case where user have to work with messages directly in RPC based library use: custom types serializing and deserializing. Simple example of it you can see on previous page.
 
-\section client Client application
+\section rpcclient Client application
 Now it is time to see client source:
 
 \code{.cpp}

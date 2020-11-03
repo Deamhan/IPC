@@ -1,13 +1,18 @@
 /**
- * Lightweight inter process communication library
- * Copyright (C) 2020 Pavel Kovalenko 
+ * \file ipc.hpp
  *
- * This Source Code Form is subject to the terms of the Mozilla
- * Public License, v. 2.0. If a copy of the MPL was not distributed
+ * \brief Basic IPC library components. 
+ *
+ * \copyright Copyright (C) 2020 Pavel Kovalenko. All rights reserved.<br>
+ * <br>
+ * This Source Code Form is subject to the terms of the Mozilla<br>
+ * Public License, v. 2.0. If a copy of the MPL was not distributed<br>
  * with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-*/
+ */
 
 #pragma once
+
+#ifndef __DOXYGEN__
 
 #include <array>
 #include <limits>
@@ -42,6 +47,8 @@
 #   endif // INVALID_SOCKET
 #   define SD_SEND SHUT_WR
 #endif // _WIN32
+
+#endif // __DOXYGEN__
 
 /**
 * \brief Tag usage control macro.
@@ -81,7 +88,9 @@
     static const size_t msg_max_length = __MSG_MAX_LENGTH__;
 #endif // __MSG_MAX_LENGTH__
 
-
+/**
+ * \brief IPC library namespace.
+ */
 namespace ipc
 {
     /**
@@ -978,4 +987,6 @@ namespace ipc
     };
 }
 
+#ifndef __DOXYGEN__
 #include "../source/ipc_impl.hpp"
+#endif // __DOXYGEN__
