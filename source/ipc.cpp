@@ -12,6 +12,10 @@
 #include <string.h>
 #include <thread>
 
+#ifdef __unix__
+#include <arpa/inet.h>
+#endif 
+
 #include "../include/ipc.hpp"
 
 namespace ipc
@@ -68,6 +72,27 @@ namespace ipc
 #endif
     }
 
+    tcp_server_socket::tcp_server_socket(uint16_t port)
+    {
+        m_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (INVALID_SOCKET == m_socket)
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+
+        sockaddr_in serv_addr = {};
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_port = htons(port);
+        serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+        if (!set_non_blocking_mode(m_socket))
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+
+        if (bind(m_socket, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) != 0)
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
+
+        if (listen(m_socket, 100) != 0)
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
+    }
+
 #ifdef __AFUNIX_H__
     unix_server_socket::unix_server_socket(std::string_view socket_link) : m_link(socket_link)
     {
@@ -97,6 +122,58 @@ namespace ipc
     }
 
 #endif //__AFUNIX_H__
+
+    void tcp_client_socket::connect_proc(uint32_t address, uint16_t port)
+    {
+        m_socket = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (INVALID_SOCKET == m_socket)
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+
+        sockaddr_in serv_addr = {};
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_port = htons(port);
+        serv_addr.sin_addr.s_addr = htonl(address);
+
+        const int max_attempts_count = 10;
+        int attempt = 0;
+        for (; attempt < max_attempts_count && connect(m_socket, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0; ++attempt)
+        {
+            int err_code = get_socket_error();
+#ifdef _WIN32
+            if (err_code == WSAECONNREFUSED)
+#else
+            if (err_code == EAGAIN || err_code == ECONNREFUSED || err_code == EINPROGRESS)
+#endif
+            {
+                std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO: fix me
+            }
+            else
+                fail_status<socket_prepare_exception>(m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
+        }
+
+        if (attempt == max_attempts_count)
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
+
+        if (!set_non_blocking_mode(m_socket))
+            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+    }
+
+    tcp_client_socket::tcp_client_socket(uint32_t address, uint16_t port) : point_to_point_socket(INVALID_SOCKET)
+    {
+        connect_proc(address, port);
+    }
+
+    tcp_client_socket::tcp_client_socket(std::string_view address, uint16_t port) : point_to_point_socket(INVALID_SOCKET)
+    {
+        auto info = gethostbyname(address.data());
+        if (info == nullptr)
+            fail_status<name_to_address_translation_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to get information about host");
+            
+        if (info->h_addrtype != AF_INET || info->h_addr_list[0] == nullptr)
+            fail_status<name_to_address_translation_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to get information about host IP address");
+
+        connect_proc(ntohl(*(u_long*)info->h_addr_list[0]), port);
+    }
 
 #ifdef _WIN32
     static inline bool is_socket_exists(const char* s) noexcept

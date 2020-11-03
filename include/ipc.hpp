@@ -265,6 +265,22 @@ namespace ipc
     };
 
     /**
+     * \brief Exception that was caused by host name to address translation error.
+     */
+    class name_to_address_translation_exception : public channel_exception
+    {
+    public:
+        /**
+         * \brief exception constructor
+         *
+         * \param code exception code (errno or last error on Windows)
+         * \param message exception message
+         */
+        template <class T>
+        name_to_address_translation_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
+    };
+
+    /**
      * \brief Exception that was caused by active channel write error.
      */
     class channel_write_exception : public channel_exception
@@ -807,6 +823,33 @@ namespace ipc
         friend class server_socket;
     };
 
+    /**
+     * \brief Client side of bidirectional data channel based on TCP sockets.
+     */
+    class tcp_client_socket : public point_to_point_socket
+    {
+    public:
+        /**
+          * \brief Tries to connect to TCP with \p port.
+          *
+          * \param address server IP address
+          * \param port TCP port number
+          */
+        tcp_client_socket(uint32_t address, uint16_t port);
+
+        /**
+         * \brief Tries to connect to TCP with \p port.
+         *
+         * \param address server IP address (null termination is required)
+         * \param port TCP port number
+         */
+
+        tcp_client_socket(std::string_view address, uint16_t port);
+
+    private:
+        void connect_proc(uint32_t address, uint16_t port);
+    };
+
 #ifdef __AFUNIX_H__
     /**
      * \brief Client side of bidirectional data channel based on UNIX sockets.
@@ -877,6 +920,20 @@ namespace ipc
         std::string m_link; ///< server text identifier
     };
 #endif //__AFUNIX_H__
+
+    /**
+     * \brief TCP passive (listening) socket.
+     */
+    class tcp_server_socket : public server_socket
+    {
+    public:
+        /**
+         * \brief Tries to create TCP socket that will listen \p port.
+         *
+         * \param port TCP port number
+         */
+        explicit tcp_server_socket(uint16_t port);
+    };
 }
 
 #include "../source/ipc_impl.hpp"

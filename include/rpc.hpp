@@ -72,9 +72,9 @@ namespace ipc
          * 
          * Esteblishes remote connection, serializes data and recieves result.
          *
-         * \tparam id identifier of remote function
+         * \tparam Id identifier of remote function
          * \tparam R return value type
-         * \param link text remote service identifier
+         * \param address service address (unix socket path or address and port to TCP connection)
          * \param dispatcher dispatcher routine (or function-like object) compatible with bool(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg). This function should return true if known 
          *  callback id is got, false otherwise
          * \param predicate function of type bool() or similar callable object 
@@ -82,15 +82,15 @@ namespace ipc
          *
          * \return result of remote call
          */
-        template <uint32_t id, typename R, typename Dispatcher, typename Predicate, typename... Args>
-        R call_by_link(const char * link, Dispatcher& dispatcher, const Predicate& predicate, const Args&... args);
+        template <uint32_t Id, typename R, typename Tuple, typename Dispatcher, typename Predicate, typename... Args>
+        R call_by_address(const Tuple& address, Dispatcher& dispatcher, const Predicate& predicate, const Args&... args);
 
         /**
          * \brief Calls remote service by established connection.
          * 
          * Serializes data and recieves result.
          *
-         * \tparam id identifier of remote function
+         * \tparam Id identifier of remote function
          * \tparam R return value type
          * \param socket established connection
          * \param in_msg input message
@@ -100,15 +100,18 @@ namespace ipc
          *
          * \return result of remote call
          */
-        template <uint32_t id, typename R, typename Predicate, typename... Args>
+        template <uint32_t Id, typename R, typename Predicate, typename... Args>
         R call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& predicate, const Args&... args);
     };
 
     /**
      * \brief Thread pool and sockets handler
      *
+     * \tparam Server_socket sorver socket class that will be used by RPC server
+     *
      * This class takes care about thread pool creating, connections and messages handling.
      */
+    template <typename Server_socket>
     class rpc_server
     {
     public:
@@ -117,7 +120,8 @@ namespace ipc
          *
          * \param path text identifier of a new server
          */
-        rpc_server(std::string_view path) : m_server_socket(std::string(path)) {}
+        template <typename... Args>
+        rpc_server(const Args&... args) : m_server_socket(args...) {}
 
         /**
          * \brief Enables remote calls processing.
@@ -131,7 +135,7 @@ namespace ipc
         void run(const Dispatcher& dispatcher, const Predicate& predicate);
 
     protected:
-        unix_server_socket m_server_socket; ///< passive socket channel instance
+        Server_socket m_server_socket; ///< passive socket channel instance
 
         /**
          * \brief Thread pool worker routine.

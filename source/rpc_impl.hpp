@@ -16,8 +16,8 @@
 
 namespace ipc
 {
-    template <typename Dispatcher, typename Predicate>
-    inline void rpc_server::run(const Dispatcher& dispatcher, const Predicate& predicate)
+    template <typename Server_socket> template <typename Dispatcher, typename Predicate>
+    inline void rpc_server<Server_socket>::run(const Dispatcher& dispatcher, const Predicate& predicate)
     {
         std::vector<std::thread> workers(std::thread::hardware_concurrency());
         for (auto& worker : workers)
@@ -29,8 +29,8 @@ namespace ipc
             worker.join();
     }
     
-    template <typename Dispatcher, typename Predicate>
-    inline void rpc_server::thread_proc(const Dispatcher* d, const Predicate* predicate)
+    template <typename Server_socket> template <typename Dispatcher, typename Predicate>
+    inline void rpc_server<Server_socket>::thread_proc(const Dispatcher* d, const Predicate* predicate)
     {
         in_message in_msg;
         out_message out_msg;
@@ -82,14 +82,43 @@ namespace ipc
                 out_msg << done_tag;
         }
     }
-    
-    template <uint32_t id, typename R, typename Dispatcher, typename Predicate, typename... Args>
-    inline R service_invoker::call_by_link(const char* link, Dispatcher& dispatcher, const Predicate& pred, const Args&... args)
+
+    template <size_t Tuple_size>
+    struct client_channel_traits;
+
+    template<>
+    struct client_channel_traits<1>
     {
-        ipc::unix_client_socket client_socket(link);
-    
+        typedef ipc::unix_client_socket type;
+    };
+
+    template<>
+    struct client_channel_traits<2>
+    {
+        typedef ipc::tcp_client_socket type;
+    };
+
+    template <size_t Tuple_size>
+    using client_channel_traits_t = client_channel_traits<Tuple_size>;
+
+    template <typename Tuple>
+    static inline auto make_client_socket(const Tuple& tuple)
+    {
+        static_assert(std::tuple_size_v<Tuple> == 1 || std::tuple_size_v<Tuple> == 2, "tuple must contain one parameter for UNIX socket and 2 parameters for TCP connection");
+
+        if constexpr (std::tuple_size_v<Tuple> == 2)
+            return ipc::tcp_client_socket(std::get<0>(tuple), std::get<1>(tuple));
+        else
+            return ipc::unix_client_socket(std::get<0>(tuple));
+    }
+
+    template <uint32_t Id, typename R, typename Tuple, typename Dispatcher, typename Predicate, typename... Args>
+    inline R service_invoker::call_by_address(const Tuple& address, Dispatcher& dispatcher, const Predicate& pred, const Args&... args)
+    {
+        auto client_socket = make_client_socket(address);
+        
         out_message request;
-        request << (uint32_t)id;
+        request << (uint32_t)Id;
         if constexpr (sizeof...(args) != 0)
             (request << ... << args);
 

@@ -4,17 +4,17 @@
 #include "../include/ipc.hpp"
 #include "simple-rpc-common.hpp"
 
-static const char* link = "foo";
-
 struct add_args
 {
     int32_t a;
     int32_t b;
 };
 
+static const char* host = "localhost";
+
 int32_t call_add_with_callbacks(add_args * args)
 {
-    ipc::unix_client_socket client_socket(link);
+    ipc::tcp_client_socket client_socket(host, port);
 
     ipc::out_message out;
     out << (uint32_t)simple_server_function_t::add_with_callbacks << ipc::message::remote_ptr<true>(args);
@@ -67,7 +67,7 @@ int32_t call_add_with_callbacks(add_args * args)
 
 int32_t call_add(int32_t a, int32_t b)
 {
-    ipc::unix_client_socket client_socket(link);
+    ipc::tcp_client_socket client_socket(host, port);
 
     ipc::out_message out;
     out << (uint32_t)simple_server_function_t::add << a << b;

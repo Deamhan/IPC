@@ -11,3 +11,5 @@ enum class simple_client_function_t
 	arg1 = 0,
 	arg2
 };
+
+static uint16_t port = 12345;

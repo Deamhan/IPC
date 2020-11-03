@@ -41,7 +41,7 @@ static void signal_handler(int /*signum*/) noexcept
     g_stop = true;
 }
 
-static void process_request(ipc::unix_server_socket * server_socket)
+static void process_request(ipc::server_socket* server_socket)
 {
     try
     {
@@ -113,7 +113,7 @@ int main()
         std::setlocale(LC_ALL, "");
         install_signal_handlers(signal_handler);
 
-        ipc::unix_server_socket server_socket("foo");
+        ipc::tcp_server_socket server_socket(port);
         
         std::cout << "server is ready" << std::endl;
 
