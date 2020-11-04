@@ -12,6 +12,8 @@
 */
 #pragma once
 
+#include <algorithm>
+
 #include "../include/rpc.hpp"
 
 namespace ipc
@@ -19,9 +21,11 @@ namespace ipc
     template <typename Server_socket> template <typename Dispatcher, typename Predicate>
     inline void rpc_server<Server_socket>::run(const Dispatcher& dispatcher, const Predicate& predicate)
     {
-        std::vector<std::thread> workers(std::thread::hardware_concurrency());
-        for (auto& worker : workers)
-            worker = std::thread(&rpc_server::thread_proc<Dispatcher, Predicate>, this, &dispatcher, &predicate);
+        std::vector<std::thread> workers;
+        std::generate_n(std::back_inserter(workers), std::thread::hardware_concurrency(), [this, &dispatcher, &predicate]
+            { 
+                return std::thread(&rpc_server::thread_proc<Dispatcher, Predicate>, this, &dispatcher, &predicate);
+            });
     
         dispatcher.ready();
 
