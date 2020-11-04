@@ -12,7 +12,8 @@ if (WIN32)
 else()
     set(IPC_LINK_DEPS pthread)
     if(CMAKE_COMPILER_IS_GNUCC)
-        set(IPC_LINK_DEPS stdc++fs)
+        set(IPC_LINK_DEPS ${IPC_LINK_DEPS}
+                          stdc++fs)
     endif() 
 endif()
 
