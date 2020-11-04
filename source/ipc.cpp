@@ -217,11 +217,11 @@ namespace ipc
             fail_status<socket_prepare_exception>(m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
         }
 
-        sockaddr_un serv_addr;
+        sockaddr_un serv_addr = {};
         serv_addr.sun_family = AF_UNIX;
         strncpy(serv_addr.sun_path, path.data(), std::min<size_t>(sizeof(serv_addr.sun_path), path.size()));
 
-        super::connect_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path));
+        super::connect_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + path.size());
     }
 
 #endif //__AFUNIX_H__
