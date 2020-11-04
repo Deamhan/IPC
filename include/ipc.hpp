@@ -858,7 +858,7 @@ namespace ipc
          *
          * \param s socket handle
          */
-        client_socket(socket_t s) noexcept : point_to_point_socket(s) {}
+        explicit client_socket(socket_t s) noexcept : point_to_point_socket(s) {}
 
         /**
          * \brief Establishes connection to the server
