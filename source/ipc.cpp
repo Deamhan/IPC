@@ -73,46 +73,41 @@ namespace ipc
 #endif
     }
 
+    void server_socket::bind_proc(const sockaddr* address, size_t size)
+    {
+        if (INVALID_SOCKET == m_socket)
+            fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+
+        if (!set_non_blocking_mode(m_socket))
+            fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+
+        if (bind(m_socket, address, size) != 0)
+            fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
+
+        if (listen(m_socket, 100) != 0)
+            fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
+    }
+
     tcp_server_socket::tcp_server_socket(uint16_t port)
     {
-        m_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (INVALID_SOCKET == m_socket)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
-
         sockaddr_in serv_addr = {};
         serv_addr.sin_family = AF_INET;
         serv_addr.sin_port = htons(port);
         serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-        if (!set_non_blocking_mode(m_socket))
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
-
-        if (bind(m_socket, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) != 0)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
-
-        if (listen(m_socket, 100) != 0)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
+        m_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        bind_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
     }
 
 #ifdef __AFUNIX_H__
     unix_server_socket::unix_server_socket(std::string_view socket_link) : m_link(socket_link)
     {
-        m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
-        if (INVALID_SOCKET == m_socket)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
-
         sockaddr_un serv_addr;
         serv_addr.sun_family = AF_UNIX;
         strcpy(serv_addr.sun_path, m_link.c_str());
 
-        if (!set_non_blocking_mode(m_socket))
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
-
-        if (bind(m_socket, (struct sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path)) != 0)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to bind socket");
-
-        if (listen(m_socket, 100) != 0)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
+        m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        bind_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path));
     }
 
     void unix_server_socket::close() noexcept
@@ -126,6 +121,9 @@ namespace ipc
 
     void client_socket::connect_proc(const sockaddr* address, size_t size)
     {
+        if (INVALID_SOCKET == m_socket)
+            fail_status<active_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
+
         const int max_attempts_count = 10;
         int attempt = 0;
         for (; attempt < max_attempts_count && connect(m_socket, address, size) < 0; ++attempt)
@@ -140,27 +138,24 @@ namespace ipc
                 std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO: fix me
             }
             else
-                fail_status<socket_prepare_exception>(m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
+                fail_status<active_socket_prepare_exception>(m_ok, err_code, std::string(__FUNCTION_NAME__) + ": unable to connect");
         }
 
         if (attempt == max_attempts_count)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
+            fail_status<active_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to connect");
 
         if (!set_non_blocking_mode(m_socket))
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
+            fail_status<active_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
     }
 
     void tcp_client_socket::connect_proc(uint32_t address, uint16_t port)
     {
-        m_socket = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (INVALID_SOCKET == m_socket)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
-
         sockaddr_in serv_addr = {};
         serv_addr.sin_family = AF_INET;
         serv_addr.sin_port = htons(port);
         serv_addr.sin_addr.s_addr = htonl(address);
 
+        m_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         super::connect_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
     }
 
@@ -203,10 +198,6 @@ namespace ipc
 #ifdef __AFUNIX_H__
     unix_client_socket::unix_client_socket(std::string_view path) : client_socket(INVALID_SOCKET)
     {
-        m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
-        if (INVALID_SOCKET == m_socket)
-            fail_status<socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
-
         if (!is_socket_exists(path.data()))
         {
 #ifdef _WIN32
@@ -214,13 +205,14 @@ namespace ipc
 #else
             int ecode = ENOENT;
 #endif
-            fail_status<socket_prepare_exception>(m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
+            fail_status<active_socket_prepare_exception>(m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
         }
 
         sockaddr_un serv_addr = {};
         serv_addr.sun_family = AF_UNIX;
         strncpy(serv_addr.sun_path, path.data(), std::min<size_t>(sizeof(serv_addr.sun_path), path.size()));
 
+        m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
         super::connect_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + path.size());
     }
 

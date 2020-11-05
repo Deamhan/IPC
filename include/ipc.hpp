@@ -118,7 +118,6 @@ namespace ipc
         /**
         * \brief Exception constructor
         * 
-        * \param code exception code (errno or last error on Windows)
         * \param message exception message
         */
         template <class T>
@@ -371,7 +370,7 @@ namespace ipc
     /**
      * \brief Passive socket preparation error.
      */
-    class socket_prepare_exception : public passive_socket_exception
+    class passive_socket_prepare_exception : public passive_socket_exception
     {
     public:
         /**
@@ -381,7 +380,23 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        socket_prepare_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
+        passive_socket_prepare_exception(int code, T&& message) : passive_socket_exception(code, std::forward<T>(message)) {}
+    };
+
+    /**
+     * \brief Active socket preparation error.
+     */
+    class active_socket_prepare_exception : public channel_exception
+    {
+    public:
+        /**
+         * \brief Exception constructor
+         *
+         * \param code exception code (errno or last error on Windows)
+         * \param message exception message
+         */
+        template <class T>
+        active_socket_prepare_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -978,6 +993,8 @@ namespace ipc
         server_socket() noexcept : socket(INVALID_SOCKET) {}
 
         std::mutex m_lock; ///< mutex for accept requests synchronizing
+
+        void bind_proc(const sockaddr* address, size_t size);
     };
 
 #ifdef __AFUNIX_H__
