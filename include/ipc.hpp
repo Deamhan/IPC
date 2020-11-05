@@ -94,9 +94,9 @@
 namespace ipc
 {
     /**
-     * \brief Generic communication channel (passive or active) exception class.
+     * \brief Helper class to distinguish from std::system_error.
      */
-    class channel_exception : public std::system_error
+    class system_error : public std::system_error
     {
     protected:  
         /**
@@ -106,13 +106,45 @@ namespace ipc
         * \param message exception message
         */
         template <class T>
-        channel_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
+        system_error(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
+    };
+    
+    /**
+     * \brief Helper class to distinguish from std::logic_error.
+     */
+    class logic_error : public std::logic_error
+    {
+    protected:  
+        /**
+        * \brief Exception constructor
+        * 
+        * \param code exception code (errno or last error on Windows)
+        * \param message exception message
+        */
+        template <class T>
+        logic_error(T&& message) : std::logic_error(std::forward<T>(message)) {}
+    };
+    
+    /**
+     * \brief Generic communication channel (passive or active) exception class.
+     */
+    class channel_exception : public system_error
+    {
+    protected:  
+        /**
+        * \brief Exception constructor
+        * 
+        * \param code exception code (errno or last error on Windows)
+        * \param message exception message
+        */
+        template <class T>
+        channel_exception(int code, T&& message) : system_error(code, std::forward<T>(message)) {}
     };
 
     /**
      * \brief Socket api initialization error (Windows only).
      */
-    class socket_api_failed_exception : public std::system_error
+    class socket_api_failed_exception : public system_error
     {
     public:
         /**
@@ -122,7 +154,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        socket_api_failed_exception(int code, T&& message) : std::system_error(code, std::system_category(), std::forward<T>(message)) {}
+        socket_api_failed_exception(int code, T&& message) : system_error(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -130,7 +162,7 @@ namespace ipc
      * 
      * After any kind of exception channel internal state becomes "failed" and it should not be used any more. Otherwise bad_channel_exception will be thrown.
      */
-    class bad_channel_exception : public std::logic_error
+    class bad_channel_exception : public logic_error
     {
     public:
         /**
@@ -139,7 +171,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        explicit bad_channel_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit bad_channel_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -147,7 +179,7 @@ namespace ipc
      * 
      * Many channel classes methods require user predicate to allow user to stop result waiting loop. If such predicate returns false ipc::user_stop_request_exception will be thrown.
      */
-    class user_stop_request_exception : public std::logic_error
+    class user_stop_request_exception : public logic_error
     {
     public:
         /**
@@ -156,7 +188,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        explicit user_stop_request_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit user_stop_request_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -164,7 +196,7 @@ namespace ipc
      * 
      * Some library classes methods accept fixed size containers (such as std::array) which capacity may be not enough to hold entire serialized object. Be caution with such methods.
      */
-    class container_overflow_exception : public std::logic_error
+    class container_overflow_exception : public logic_error
     {
     public:
         /**
@@ -173,7 +205,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        explicit container_overflow_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit container_overflow_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -188,7 +220,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        explicit message_format_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit message_format_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -228,7 +260,7 @@ namespace ipc
      *
      * After any kind of exception message internal state becomes "failed" and it should be cleared by ipc::message::reset_fail_state or by full message reset. Otherwise bad_message_exception will be thrown.
      */
-    class bad_message_exception : public std::logic_error
+    class bad_message_exception : public logic_error
     {
     public:
         /**
@@ -237,13 +269,13 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        explicit bad_message_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit bad_message_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
      * \brief  Exception that will be thrown if hostname translation result is not IP address.
      */
-    class bad_hostname_exception : public std::logic_error
+    class bad_hostname_exception : public logic_error
     {
     public:
         /**
@@ -252,7 +284,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        explicit bad_hostname_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit bad_hostname_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -260,7 +292,7 @@ namespace ipc
      *
      * To avoid exception condition you should either increase __MSG_MAX_LENGTH__ or reduce data amount per message. 
      */
-    class message_overflow_exception : public std::logic_error
+    class message_overflow_exception : public logic_error
     {
     public:
         /**
@@ -269,7 +301,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        explicit message_overflow_exception(T&& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit message_overflow_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
