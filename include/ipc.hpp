@@ -121,7 +121,7 @@ namespace ipc
         * \param message exception message
         */
         template <class T>
-        logic_error(T&& message) : std::logic_error(std::forward<T>(message)) {}
+        explicit logic_error(T&& message) : std::logic_error(std::forward<T>(message)) {}
     };
     
     /**

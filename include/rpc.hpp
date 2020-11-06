@@ -126,7 +126,7 @@ namespace ipc
          * \param args info for socket creation
          */
         template <typename... Args>
-        rpc_server(const Args&... args) : m_server_socket(args...) {}
+        explicit rpc_server(const Args&... args) : m_server_socket(args...) {}
 
         /**
          * \brief Enables remote calls processing.
