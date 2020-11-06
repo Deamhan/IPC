@@ -148,7 +148,7 @@ namespace ipc
          * This routine accepts incomming connections, reads incoming messages, deserializes request code and forwars it to Dispatcher::invoke routine (in loop). After dispatching outcoming message will be sent back by #thread_proc.
          * #thread_proc sets top level exception handler that forwards exceptions to Dispatcher::report_error as std::exception referenses. 
          *
-         * \param dispatcher object that must have several methods:  invoke(uint32_t, ipc::in_message&, ipc::out_message&, ipc::point_to_point_socket&) const, void report_error(const std::exception&) const and void ready() const.
+         * \param dispatcher object that must have several methods:  invoke(uint32_t, ipc::in_message&, ipc::out_message&, ipc::point_to_point_socket&) const, void report_error(const std::exception_ptr& p) const and void ready() const.
          * \param predicate predicate function (or function-like object) that allows user to stop worker threads.
          */
         template <typename Dispatcher, typename Predicate>

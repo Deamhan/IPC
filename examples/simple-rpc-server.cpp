@@ -65,10 +65,19 @@ public:
         }
     }
 
-    void report_error(const std::exception& ex) const
+    void report_error(const std::exception_ptr& p) const
     {
         if (!g_stop)
-            std::cout << "call error >> " << ex.what() << std::endl;
+        {
+            try
+            {
+                std::rethrow_exception(p);
+            }
+            catch (const std::exception& ex)
+            {
+                std::cout << "call error >> " << ex.what() << std::endl;
+            }
+        }    
     }
 
     void ready() const

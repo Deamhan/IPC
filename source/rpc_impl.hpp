@@ -13,6 +13,7 @@
 #pragma once
 
 #include <algorithm>
+#include <exception>
 
 #include "../include/rpc.hpp"
 
@@ -52,9 +53,10 @@ namespace ipc
                 p2p_socket.write_message(out_msg, *predicate);
                 p2p_socket.wait_for_shutdown(*predicate);
             }
-            catch (const std::exception& ex)
+            catch (...)
             {
-                d->report_error(ex);
+                std::exception_ptr p = std::current_exception();
+                d->report_error(p);
             }
         }
     }
