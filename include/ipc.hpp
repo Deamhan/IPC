@@ -125,9 +125,9 @@ namespace ipc
     };
     
     /**
-     * \brief Generic communication channel (passive or active) exception class.
+     * \brief Generic socket (passive or active) exception class.
      */
-    class channel_exception : public system_error
+    class socket_exception : public system_error
     {
     protected:  
         /**
@@ -137,7 +137,39 @@ namespace ipc
         * \param message exception message
         */
         template <class T>
-        channel_exception(int code, T&& message) : system_error(code, std::forward<T>(message)) {}
+        socket_exception(int code, T&& message) : system_error(code, std::forward<T>(message)) {}
+    };
+
+    /**
+     * \brief Generic passive socket exception class.
+     */
+    class passive_socket_exception : public socket_exception
+    {
+    protected:
+        /**
+        * \brief Exception constructor
+        *
+        * \param code exception code (errno or last error on Windows)
+        * \param message exception message
+        */
+        template <class T>
+        passive_socket_exception(int code, T&& message) : socket_exception(code, std::forward<T>(message)) {}
+    };
+
+    /**
+     * \brief Generic active socket exception class.
+     */
+    class active_socket_exception : public socket_exception
+    {
+    protected:
+        /**
+        * \brief Exception constructor
+        *
+        * \param code exception code (errno or last error on Windows)
+        * \param message exception message
+        */
+        template <class T>
+        active_socket_exception(int code, T&& message) : socket_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -157,11 +189,11 @@ namespace ipc
     };
 
     /**
-     * \brief Exception that was caused by use of failed channel.
+     * \brief Exception that was caused by use of failed socket.
      * 
-     * After any kind of exception channel internal state becomes "failed" and it should not be used any more. Otherwise bad_channel_exception will be thrown.
+     * After any kind of exception socket internal state becomes "failed" and it should not be used any more. Otherwise bad_socket_exception will be thrown.
      */
-    class bad_channel_exception : public logic_error
+    class bad_socket_exception : public logic_error
     {
     public:
         /**
@@ -170,13 +202,13 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        explicit bad_channel_exception(T&& message) : logic_error(std::forward<T>(message)) {}
+        explicit bad_socket_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
      * \brief Exception that identifies user stop request.
      * 
-     * Many channel classes methods require user predicate to allow user to stop result waiting loop. If such predicate returns false ipc::user_stop_request_exception will be thrown.
+     * Many socket classes methods require user predicate to allow user to stop result waiting loop. If such predicate returns false ipc::user_stop_request_exception will be thrown.
      */
     class user_stop_request_exception : public logic_error
     {
@@ -304,9 +336,9 @@ namespace ipc
     };
 
     /**
-     * \brief Exception that was caused by active channel read error.
+     * \brief Exception that was caused by active socket read error.
      */
-    class channel_read_exception : public channel_exception
+    class socket_read_exception : public active_socket_exception
     {
     public:
         /**
@@ -316,13 +348,13 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        channel_read_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
+        socket_read_exception(int code, T&& message) : active_socket_exception(code, std::forward<T>(message)) {}
     };
 
     /**
      * \brief Exception that was caused by host name to address translation error.
      */
-    class name_to_address_translation_exception : public channel_exception
+    class name_to_address_translation_exception : public system_error
     {
     public:
         /**
@@ -332,13 +364,13 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        name_to_address_translation_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
+        name_to_address_translation_exception(int code, T&& message) : system_error(code, std::forward<T>(message)) {}
     };
 
     /**
-     * \brief Exception that was caused by active channel write error.
+     * \brief Exception that was caused by active socket write error.
      */
-    class channel_write_exception : public channel_exception
+    class socket_write_exception : public active_socket_exception
     {
     public:
         /**
@@ -348,23 +380,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        channel_write_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
-    };
-
-    /**
-     * \brief Generic passive socket exception class.
-     */
-    class passive_socket_exception : public channel_exception
-    {
-    protected:
-        /**
-         * \brief Exception constructor
-         *
-         * \param code exception code (errno or last error on Windows)
-         * \param message exception message
-         */
-        template <class T>
-        passive_socket_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
+        socket_write_exception(int code, T&& message) : active_socket_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -386,7 +402,7 @@ namespace ipc
     /**
      * \brief Active socket preparation error.
      */
-    class active_socket_prepare_exception : public channel_exception
+    class active_socket_prepare_exception : public active_socket_exception
     {
     public:
         /**
@@ -396,7 +412,7 @@ namespace ipc
          * \param message exception message
          */
         template <class T>
-        active_socket_prepare_exception(int code, T&& message) : channel_exception(code, std::forward<T>(message)) {}
+        active_socket_prepare_exception(int code, T&& message) : active_socket_exception(code, std::forward<T>(message)) {}
     };
 
     /**
@@ -994,6 +1010,12 @@ namespace ipc
 
         std::mutex m_lock; ///< mutex for accept requests synchronizing
 
+        /**
+         * \brief Binds socket handle to the address
+         * 
+         * \param address address to bind
+         * \param size size of data that \p address points
+         */
         void bind_proc(const sockaddr* address, size_t size);
     };
 

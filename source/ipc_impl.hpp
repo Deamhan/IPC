@@ -117,14 +117,14 @@ namespace ipc
     template<typename Predicate>
     inline bool point_to_point_socket::read_message(std::vector<char>& message, const Predicate& predicate)
     {
-        check_status<bad_channel_exception>(m_ok, __FUNCTION_NAME__);
+        check_status<bad_socket_exception>(m_ok, __FUNCTION_NAME__);
 
         size_t read = 0;
         size_t size = (size_t)(-1);
         while (read < std::min<size_t>(message.size(), size))
         {
             if (!wait_for<true>(m_socket, predicate))
-                fail_status<channel_read_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
+                fail_status<socket_read_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
     
             int result = recv(m_socket, message.data() + read, message.size() - read, 0);
             if (result < 0)
@@ -146,18 +146,18 @@ namespace ipc
                 break;
         }
     
-        return update_status<channel_read_exception>(m_ok, read == size, get_socket_error(), __FUNCTION_NAME__);
+        return update_status<socket_read_exception>(m_ok, read == size, get_socket_error(), __FUNCTION_NAME__);
     }
     
     template<typename Predicate>
     inline bool point_to_point_socket::write_message(const char* message, const Predicate& predicate)
     {
-        check_status<bad_channel_exception>(m_ok, __FUNCTION_NAME__);
+        check_status<bad_socket_exception>(m_ok, __FUNCTION_NAME__);
 
         do
         {
             if (!wait_for<false>(m_socket, predicate))
-                return fail_status<channel_write_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
+                return fail_status<socket_write_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
 
             int result = send(m_socket, message, *(const __MSG_LENGTH_TYPE__*)message, 0);
             if (result >= 0)
@@ -172,7 +172,7 @@ namespace ipc
     #endif
                     continue;
     
-                return fail_status<channel_write_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
+                return fail_status<socket_write_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
             }
         } while (true);
     }
