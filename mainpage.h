@@ -140,7 +140,7 @@ catch(const std::exception& ex)
 
 dispatcher here is class that implements three callbacks: 
 -# \code{.cpp}void invoke(uint32_t, ipc::in_message&, ipc::out_message&, ipc::point_to_point_socket&) const \endcode
--# \code{.cpp}void report_error(const std::exception&) const \endcode
+-# \code{.cpp}void report_error(const std::exception_ptr&) const \endcode
 -# \code{.cpp}void ready() const \endcode
 
 First of it is used to invoke requested service (identifier is a first parameter), second is used to report errors and third is used to report "ready" state. Now we will see main part of server - dispatcher:
@@ -169,10 +169,19 @@ public:
         }
     }
 
-    void report_error(const std::exception& ex) const
+    void report_error(const std::exception_ptr& p) const
     {
         if (!g_stop)
-            std::cout << "call error >> " << ex.what() << std::endl;
+        {
+            try
+            {
+                std::rethrow_exception(p);
+            }
+            catch (const std::exception& ex)
+            {
+                std::cout << "call error >> " << ex.what() << std::endl;
+            }
+        }    
     }
 
     void ready() const
