@@ -89,33 +89,18 @@ namespace ipc
         }
     }
 
-    template <size_t Tuple_size>
-    struct client_channel_traits;
-
-    template<>
-    struct client_channel_traits<1>
+#ifdef __AFUNIX_H__
+    template <typename T>
+    static inline auto make_client_socket(const std::tuple<T>& tuple)
     {
-        typedef ipc::unix_client_socket type;
-    };
+        return ipc::unix_client_socket(std::get<0>(tuple));
+    }
+#endif // __AFUNIX_H__
 
-    template<>
-    struct client_channel_traits<2>
+    template <typename T1, typename T2>
+    static inline auto make_client_socket(const std::tuple<T1, T2>& tuple)
     {
-        typedef ipc::tcp_client_socket type;
-    };
-
-    template <size_t Tuple_size>
-    using client_channel_traits_t = client_channel_traits<Tuple_size>;
-
-    template <typename Tuple>
-    static inline auto make_client_socket(const Tuple& tuple)
-    {
-        static_assert(std::tuple_size_v<Tuple> == 1 || std::tuple_size_v<Tuple> == 2, "tuple must contain one parameter for UNIX socket and 2 parameters for TCP connection");
-
-        if constexpr (std::tuple_size_v<Tuple> == 2)
-            return ipc::tcp_client_socket(std::get<0>(tuple), std::get<1>(tuple));
-        else
-            return ipc::unix_client_socket(std::get<0>(tuple));
+        return ipc::tcp_client_socket(std::get<0>(tuple), std::get<1>(tuple));
     }
 
     template <uint32_t Id, typename R, typename Tuple, typename Dispatcher, typename Predicate, typename... Args>
