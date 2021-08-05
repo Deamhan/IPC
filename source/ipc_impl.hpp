@@ -30,7 +30,6 @@ namespace ipc
     template<bool Reading, typename Predicate>
     static bool wait_for(socket_t s, const Predicate& predicate)
     {
-        timeval timeout = { 1, 0 };
         int count = 0;
         while (count == 0)
         {
@@ -40,6 +39,7 @@ namespace ipc
             fd_set fds;
             FD_ZERO(&fds);
             FD_SET(s, &fds);
+            timeval timeout = { 1, 0 };
             if constexpr (Reading)
                 count = select(FD_SETSIZE, &fds, nullptr, nullptr, &timeout);
             else
