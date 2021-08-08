@@ -15,6 +15,7 @@
 #ifndef __DOXYGEN__
 
 #include <array>
+#include <cinttypes>
 #include <limits>
 #include <mutex>
 #include <string>
@@ -434,28 +435,28 @@ namespace ipc
     /**
      * \brief Base class for all sockets hierarchy.
      */
+    template <class Engine>
     class socket
     {
     public:
-        operator bool() const noexcept { return m_ok; } ///< checks socket internal state
+        operator bool() const noexcept { return m_engine.is_ok(); } ///< checks socket internal state
 
         socket(const socket&) = delete;
         socket& operator = (const socket&) = delete;
 
-        void close() noexcept; ///< closes socket
+        void close() noexcept { m_engine.close(); }; ///< closes socket
         ~socket() { close(); }
     protected:
-        bool m_ok; ///< internal state flag
-        socket_t m_socket; ///< socket handle
+        Engine m_engine;
         
         /**
          * \brief Socket handle based constructor
          *
          * Acquired socket handle will be closed automatically on instance destruction (RAII)
          *
-         * \param s socket handle
          */
-        explicit socket(socket_t s);
+        template <class... Args>
+        explicit socket(Args&&... args) : m_engine(std::forward<Args>(args)...) {}
     };
 
     /**
@@ -534,14 +535,14 @@ namespace ipc
            /**
             * \brief Helper structure that identifies internal pointer type.
             */
-            template <bool ConstPointer, typename T>
+            template <bool ConstPointer, class T>
             struct const_traits
             {
                 typedef T* ptr_t; ///< pointer type
             };
 
 #ifndef __DOXYGEN__
-            template <typename T>
+            template <class T>
             struct const_traits<true, T>
             {
                 typedef const T* ptr_t;
@@ -551,7 +552,7 @@ namespace ipc
             /**
              * Helper alias that identifies internal pointer type.
              */
-            template <bool ConstPointer, typename T>
+            template <bool ConstPointer, class T>
             using ptr_t = typename const_traits<ConstPointer, T>::ptr_t;
 
             /**
@@ -611,10 +612,10 @@ namespace ipc
         /**
          * \brief Helper structure that is used to get #type_tag of given type
          */
-        template <typename T> 
+        template <class T>
         struct tag_traits;
 
-        template <typename T>
+        template <class T>
         friend struct tag_traits;
 
         message() noexcept : m_ok(true) {}
@@ -642,7 +643,7 @@ namespace ipc
      * \brief Output message type.
      *
      * This class serializes user's data to its internal buffer which max size is __MSG_MAX_LENGTH__.
-     * Filled message should be passed to PointToPointSocket::write_message function.
+     * Filled message should be passed to point_to_point_socket::write_message function.
      */
     class out_message : public message
     {
@@ -654,7 +655,7 @@ namespace ipc
          *
          * \return message self reference 
          */
-        template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
+        template <class T, class = std::enable_if_t<trivial_type<T>::value>>
         out_message& operator << (T arg) { return push<tag_traits<T>::value>(arg); }
 
         /**
@@ -708,7 +709,7 @@ namespace ipc
           *
           * \param arg - data to serialize.
           */
-        template <type_tag Tag, typename T, typename = std::enable_if_t<trivial_type<T>::value>>
+        template <type_tag Tag, class T, class = std::enable_if_t<trivial_type<T>::value>>
         out_message& push(T arg);
         
         std::vector<char> m_buffer; ///< internal message buffer
@@ -718,7 +719,7 @@ namespace ipc
      * \brief Input message type.
      *
      * This class deserializes user data from its internal buffer which max size is __MSG_MAX_LENGTH__.
-     * Empty message should be filled by PointToPointSocket::read_message function first.
+     * Empty message should be filled by point_to_point_socket::read_message function first.
      */
     class in_message : public message
     {
@@ -730,7 +731,7 @@ namespace ipc
          *
          * \return message self reference 
          */
-        template <typename T, typename = std::enable_if_t<trivial_type<T>::value>>
+        template <class T, class = std::enable_if_t<trivial_type<T>::value>>
         in_message& operator >> (T& arg) { return pop<tag_traits<T>::value>(arg); }
 
         /**
@@ -794,22 +795,24 @@ namespace ipc
          * 
          * \param arg - extracted data.
          */
-        template <type_tag Tag, typename T, typename = std::enable_if_t<trivial_type<T>::value>>
+        template <type_tag Tag, class T, class = std::enable_if_t<trivial_type<T>::value>>
         in_message& pop(T& arg);
 
         std::vector<char> m_buffer; ///< internal message buffer
         size_t m_offset; ///< current reading offset in #m_buffer
     };
 
+    template <class Engine>
     class server_socket;
 
     /**
      * \brief Bidirectional data channel.
      *
      * This class allows pair of applications to send and receive data between each other. Instance cannot be created directly:
-     * it can be obtained as result of ServerSocket::accept (received instance will represent server side of data channel).
+     * it can be obtained as result of server_socket::accept (received instance will represent server side of data channel).
      */
-    class point_to_point_socket : public socket
+    template <class Engine>
+    class point_to_point_socket : public socket<Engine>
     {
     public:
         /**
@@ -823,7 +826,7 @@ namespace ipc
          *
          * \return true if message has been read successfully.
          */
-        template<typename Predicate>
+        template<class Predicate>
         bool read_message(std::vector<char>& message, const Predicate& predicate);
 
         /**
@@ -837,7 +840,7 @@ namespace ipc
          *
          * \return true if message has been read successfully.
          */
-        template<typename Predicate>
+        template<class Predicate>
         bool read_message(in_message& message, const Predicate& predicate);
 
         /**
@@ -854,7 +857,7 @@ namespace ipc
           *
           * \return true if message writing has been started successfully
           */
-        template<typename Predicate>
+        template<class Predicate>
         bool write_message(const char * message, const Predicate& predicate);
 
         /**
@@ -871,7 +874,7 @@ namespace ipc
           *
           * \return true if message writing has been started successfully
           */
-        template<typename Predicate>
+        template<class Predicate>
         bool write_message(out_message& message, const Predicate& predicate) { return write_message(message.get_data().data(), predicate); }
 
         /**
@@ -884,15 +887,15 @@ namespace ipc
           *
           * \sa #shutdown.
           */
-        template<typename Predicate>
-        void wait_for_shutdown(const Predicate& predicate);
+        template<class Predicate>
+        void wait_for_shutdown(const Predicate& predicate) { m_engine.wait_for_shutdown(predicate, 1); }
 
         /**
           * \brief Sends shutdown signal.
           *
           * \sa #wait_for_shutdown.
           */
-        void shutdown() noexcept;
+        void shutdown() noexcept { m_engine.shutdown(); };
 
         ~point_to_point_socket() { shutdown(); }
     protected:
@@ -905,87 +908,34 @@ namespace ipc
          *
          * \param s socket handle
          */
-        explicit point_to_point_socket(socket_t s) noexcept : socket(s) {}
+        template <class... Args>
+        explicit point_to_point_socket(Args&&... args) noexcept : socket(std::forward<Args>(args)...) {}
 
+        template <class T>
         friend class server_socket;
     };
 
     /**
-     * \brief Helper class for building client sockets.
+     * \brief Active (data) socket
      */
-    class client_socket : public point_to_point_socket
+    template <class Engine>
+    class client_socket : public point_to_point_socket<Engine>
     {
-    protected:
+    public:
         /**
          * \brief Socket handle based constructor. Just forwards \p s to ipc::point_to_point_socket constructor.
          *
          * \param s socket handle
          */
-        explicit client_socket(socket_t s) noexcept : point_to_point_socket(s) {}
-
-        /**
-         * \brief Establishes connection to the server
-         *
-         * \param address filled sockaddr compatible structure
-         * \param size size of structure pointed by address
-         */
-        void connect_proc(const sockaddr* address, size_t size);
+        template <class... Args>
+        explicit client_socket(Args&&... args) noexcept : point_to_point_socket(std::forward<Args>(args)...) {}
     };
 
     /**
-     * \brief Client side of bidirectional data channel based on TCP sockets.
+     * \brief Passive (listening) socket
      */
-    class tcp_client_socket : public client_socket
-    {
-    public:
-        /**
-          * \brief Tries to connect to TCP with \p port.
-          *
-          * \param address server IP address
-          * \param port TCP port number
-          */
-        tcp_client_socket(uint32_t address, uint16_t port);
-
-        /**
-         * \brief Tries to connect to TCP with \p port.
-         *
-         * \param address server IP address (null termination is required)
-         * \param port TCP port number
-         */
-
-        tcp_client_socket(std::string_view address, uint16_t port);
-
-    private:
-        void connect_proc(uint32_t address, uint16_t port);
-
-        typedef client_socket super; ///< super class typedef
-    };
-
-#ifdef __AFUNIX_H__
-    /**
-     * \brief Client side of bidirectional data channel based on UNIX sockets.
-     * 
-     * \warning Unix sockets available on Windows only since Windows 10 build 17063
-     */
-    class unix_client_socket : public client_socket
-    {
-    public:
-        /**
-          * \brief Tries to connect to UNIX socket \p path.
-          *      
-          * \param path UNIX socket path (must be null terminated)
-          */
-        explicit unix_client_socket(std::string_view path);
-
-    private:
-        typedef client_socket super; ///< super class typedef
-    };
-#endif //__AFUNIX_H__
-
-    /**
-     * \brief Common passive (listening) socket. Helper class only.
-     */
-    class server_socket : public socket
+    template <class Engine>
+    class server_socket : public socket<Engine>
     {
     public:
         /**
@@ -997,65 +947,111 @@ namespace ipc
          * \param predicate function of type bool() or similar callable object 
          * \return socket for data exchange
          */
-        template<typename Predicate>
-        point_to_point_socket accept(const Predicate& predicate);
-    protected:
+        template<class Predicate>
+        point_to_point_socket<typename Engine::point_to_point_engine_t> accept(const Predicate& predicate);
+
         /**
         * \brief Default constructor
         *
-        * Creates server socket instance that initialized by INVALID_SOCKET
+        * Creates server socket instance
         */
-    
-        server_socket() noexcept : socket(INVALID_SOCKET) {}
+        template <class... Args>
+        server_socket(Args&&... args) noexcept : socket(std::forward<Args>(args)...) {}
+    };
 
-        std::mutex m_lock; ///< mutex for accept requests synchronizing
+    class os_socket_engine
+    {
+    public:
+        bool& is_ok() noexcept { return m_ok; }
+        void close() noexcept;
 
-        /**
-         * \brief Binds socket handle to the address
-         * 
-         * \param address address to bind
-         * \param size size of data that \p address points
-         */
+    protected:
+        bool m_ok;
+        socket_t m_socket;
+
+        os_socket_engine(socket_t s);
+    };
+
+    class os_point_to_point_socket_engine : public os_socket_engine
+    {
+    public:
+        template<class Predicate>
+        size_t read(char* message, size_t size, const Predicate& predicate, uint16_t timeout_sec);
+
+        template<class Predicate>
+        bool write(const char* message, const Predicate& predicate, uint16_t timeout_sec);
+
+        void shutdown();
+
+        template<class Predicate>
+        void wait_for_shutdown(const Predicate& predicate, uint16_t timeout_sec);
+
+        os_point_to_point_socket_engine(socket_t s) : os_socket_engine(s) {}
+
+    protected:
+        void connect_proc(const sockaddr* address, size_t size);
+    };
+
+    class os_server_socket_engine : public os_socket_engine
+    {
+    public:
+        template<class Predicate>
+        socket_t accept(const Predicate& predicate, uint16_t timeout_sec);
+
+        typedef os_point_to_point_socket_engine point_to_point_engine_t;
+
+    protected:
+        std::mutex m_lock; ///< mutex for accept synchronization
+
         void bind_proc(const sockaddr* address, size_t size);
+        os_server_socket_engine(socket_t s): os_socket_engine(s) {}
     };
 
 #ifdef __AFUNIX_H__
-   /**
-     * \brief Unix passive (listening) socket.
-     * 
-     * \warning Unix sockets available on Windows only since Windows 10 build 17063
-     */
-    class unix_server_socket : public server_socket
+    class unix_server_socket_engine final : public os_server_socket_engine
     {
     public:
-        /**
-         * \brief Tries to create UNIX socket \p path. 
-         *      
-         * \param path UNIX socket path
-         */
-        explicit unix_server_socket(std::string_view path);
-        
-        ~unix_server_socket() { close(); };
-        void close() noexcept; ///< closes socket
-    protected:
-        typedef server_socket super; ///< super class typedef
-        std::string m_link; ///< server text identifier
+        unix_server_socket_engine(std::string_view socket_link);
+        void close() noexcept;
+
+    private:
+        std::string m_link;
+        typedef os_socket_engine super;
     };
+
+    class unix_client_socket_engine final : public os_point_to_point_socket_engine
+    {
+    public:
+        unix_client_socket_engine(std::string_view socket_link);
+
+    private:
+        std::string m_link;
+    };
+
+    typedef server_socket<unix_server_socket_engine> unix_server_socket;
+    typedef client_socket<unix_client_socket_engine> unix_client_socket;
 #endif //__AFUNIX_H__
 
-    /**
-     * \brief TCP passive (listening) socket.
-     */
-    class tcp_server_socket : public server_socket
+    class tcp_server_socket_engine final : public os_server_socket_engine
     {
     public:
-        /**
-         * \brief Tries to create TCP socket that will listen \p port.
-         *
-         * \param port TCP port number
-         */
-        explicit tcp_server_socket(uint16_t port);
+        tcp_server_socket_engine(uint16_t port);
     };
+
+    class tcp_client_socket_engine final : public os_point_to_point_socket_engine
+    {
+    public:
+        tcp_client_socket_engine(uint32_t address, uint16_t port);
+        tcp_client_socket_engine(std::string_view name, uint16_t port);
+
+    private:
+        void connect_proc(uint32_t address, uint16_t port);
+        typedef os_point_to_point_socket_engine super;
+    };
+
+    typedef server_socket<tcp_server_socket_engine> tcp_server_socket;
+    typedef client_socket<tcp_client_socket_engine> tcp_client_socket;
+    
 }
 
 #ifndef __DOXYGEN__

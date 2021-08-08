@@ -42,13 +42,13 @@ namespace ipc
 #endif
     }
 
-    socket::socket(socket_t socket) : m_ok(init_socket_api()), m_socket(socket)
+    os_socket_engine::os_socket_engine(socket_t s) : m_ok(init_socket_api()), m_socket(s)
     {
         if (!m_ok)
             throw socket_api_failed_exception(get_socket_error(), __FUNCTION_NAME__);
     }
 
-    void socket::close() noexcept
+    void os_socket_engine::close() noexcept
     {
         if (m_socket != INVALID_SOCKET)
         {
@@ -62,6 +62,12 @@ namespace ipc
         }
     }
 
+    void os_point_to_point_socket_engine::shutdown()
+    {
+        ::shutdown(m_socket, SD_SEND);
+        m_ok = false;
+    }
+
     static bool set_non_blocking_mode(socket_t s) noexcept
     {
 #ifdef _WIN32
@@ -73,7 +79,7 @@ namespace ipc
 #endif
     }
 
-    void server_socket::bind_proc(const sockaddr* address, size_t size)
+    void os_server_socket_engine::bind_proc(const sockaddr* address, size_t size)
     {
         if (INVALID_SOCKET == m_socket)
             fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
@@ -88,7 +94,7 @@ namespace ipc
             fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to listen socket");
     }
 
-    tcp_server_socket::tcp_server_socket(uint16_t port)
+    tcp_server_socket_engine::tcp_server_socket_engine(uint16_t port) : os_server_socket_engine(INVALID_SOCKET)
     {
         sockaddr_in serv_addr = {};
         serv_addr.sin_family = AF_INET;
@@ -100,7 +106,7 @@ namespace ipc
     }
 
 #ifdef __AFUNIX_H__
-    unix_server_socket::unix_server_socket(std::string_view socket_link) : m_link(socket_link)
+    unix_server_socket_engine::unix_server_socket_engine(std::string_view socket_link) : os_server_socket_engine(INVALID_SOCKET), m_link(socket_link)
     {
         sockaddr_un serv_addr;
         serv_addr.sun_family = AF_UNIX;
@@ -110,7 +116,7 @@ namespace ipc
         bind_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + strlen(serv_addr.sun_path));
     }
 
-    void unix_server_socket::close() noexcept
+    void unix_server_socket_engine::close() noexcept
     {
         super::close();
         if (!m_link.empty())
@@ -119,7 +125,7 @@ namespace ipc
 
 #endif //__AFUNIX_H__
 
-    void client_socket::connect_proc(const sockaddr* address, size_t size)
+    void os_point_to_point_socket_engine::connect_proc(const sockaddr* address, size_t size)
     {
         if (INVALID_SOCKET == m_socket)
             fail_status<active_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
@@ -148,7 +154,7 @@ namespace ipc
             fail_status<active_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to enable non blocking mode");
     }
 
-    void tcp_client_socket::connect_proc(uint32_t address, uint16_t port)
+    void tcp_client_socket_engine::connect_proc(uint32_t address, uint16_t port)
     {
         sockaddr_in serv_addr = {};
         serv_addr.sin_family = AF_INET;
@@ -159,7 +165,7 @@ namespace ipc
         super::connect_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
     }
 
-    tcp_client_socket::tcp_client_socket(uint32_t address, uint16_t port) : client_socket(INVALID_SOCKET)
+    tcp_client_socket_engine::tcp_client_socket_engine(uint32_t address, uint16_t port) : os_point_to_point_socket_engine(INVALID_SOCKET)
     {
         connect_proc(address, port);
     }
@@ -170,7 +176,7 @@ namespace ipc
     static inline int get_h_socket_error() noexcept { return h_errno; }
 #endif // _WIN32
 
-    tcp_client_socket::tcp_client_socket(std::string_view address, uint16_t port) : client_socket(INVALID_SOCKET)
+    tcp_client_socket_engine::tcp_client_socket_engine(std::string_view address, uint16_t port) : os_point_to_point_socket_engine(INVALID_SOCKET)
     {
         auto info = gethostbyname(address.data());
         if (info == nullptr)
@@ -196,7 +202,7 @@ namespace ipc
 #endif
 
 #ifdef __AFUNIX_H__
-    unix_client_socket::unix_client_socket(std::string_view path) : client_socket(INVALID_SOCKET)
+    unix_client_socket_engine::unix_client_socket_engine(std::string_view path) : os_point_to_point_socket_engine(INVALID_SOCKET)
     {
         if (!is_socket_exists(path.data()))
         {
@@ -213,7 +219,7 @@ namespace ipc
         strncpy(serv_addr.sun_path, path.data(), std::min<size_t>(sizeof(serv_addr.sun_path), path.size()));
 
         m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
-        super::connect_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + path.size());
+        connect_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + path.size());
     }
 
 #endif //__AFUNIX_H__

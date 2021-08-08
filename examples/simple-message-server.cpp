@@ -41,7 +41,7 @@ static void signal_handler(int /*signum*/) noexcept
     g_stop = true;
 }
 
-static void process_request(ipc::server_socket* server_socket)
+static void process_request(ipc::tcp_server_socket* server_socket)
 {
     try
     {

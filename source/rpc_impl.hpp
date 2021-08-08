@@ -138,8 +138,8 @@ namespace ipc
         }
     }
     
-    template <uint32_t id, typename R, typename Predicate, typename... Args>
-    R service_invoker::call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& pred, const Args&... args)
+    template <uint32_t id, typename R, typename Predicate, class Engine, typename... Args>
+    R service_invoker::call_by_channel(point_to_point_socket<Engine>& socket, in_message& in_msg, out_message& out_msg, const Predicate& pred, const Args&... args)
     {
         try
         {

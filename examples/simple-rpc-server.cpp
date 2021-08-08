@@ -45,7 +45,8 @@ auto predicate = []() { return !g_stop; };
 class dispatcher
 {
 public:
-    void invoke(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg, ipc::point_to_point_socket& p2p_socket) const
+    template <class Engine>
+    void invoke(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg, ipc::point_to_point_socket<Engine>& p2p_socket) const
     {
         switch ((simple_server_function_t)id)
         {

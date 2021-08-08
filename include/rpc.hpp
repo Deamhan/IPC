@@ -87,7 +87,7 @@ namespace ipc
          *
          * \return result of remote call
          */
-        template <uint32_t Id, typename R, typename Tuple, typename Dispatcher, typename Predicate, typename... Args>
+        template <uint32_t Id, class R, typename Tuple, class Dispatcher, class Predicate, class... Args>
         R call_by_address(const Tuple& address, Dispatcher& dispatcher, const Predicate& predicate, const Args&... args);
 
         /**
@@ -105,8 +105,8 @@ namespace ipc
          *
          * \return result of remote call
          */
-        template <uint32_t Id, typename R, typename Predicate, typename... Args>
-        R call_by_channel(point_to_point_socket& socket, in_message& in_msg, out_message& out_msg, const Predicate& predicate, const Args&... args);
+        template <uint32_t Id, class R, class Predicate, class Engine, class... Args>
+        R call_by_channel(point_to_point_socket<Engine>& socket, in_message& in_msg, out_message& out_msg, const Predicate& predicate, const Args&... args);
     };
 
     /**
