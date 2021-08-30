@@ -105,7 +105,7 @@ namespace ipc
                     continue;
 #endif
 
-                break;
+                fail_status<socket_read_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
             }
             else if (result != 0)
             {
@@ -184,7 +184,7 @@ namespace ipc
     }
 
     template <class Engine> template<typename Predicate>
-    inline bool point_to_point_socket<Engine>::read_message(std::vector<char>& message, const Predicate& predicate)
+    inline void point_to_point_socket<Engine>::get_request(std::vector<char>& message, const Predicate& predicate)
     {
         check_status<bad_socket_exception>(m_engine.is_ok(), __FUNCTION_NAME__);
 
@@ -196,15 +196,44 @@ namespace ipc
             ok = (read == size);
         }
 
-        return update_status<socket_read_exception>(m_engine.is_ok(), ok, get_socket_error(), __FUNCTION_NAME__);
+        update_status<message_integrity_exception>(m_engine.is_ok(), ok, __FUNCTION_NAME__);
     }
     
     template <class Engine> template<typename Predicate>
-    inline bool point_to_point_socket<Engine>::write_message(const char* message, const Predicate& predicate)
+    inline void point_to_point_socket<Engine>::send_response(const char* message, const Predicate& predicate)
     {
         check_status<bad_socket_exception>(m_engine.is_ok(), __FUNCTION_NAME__);
 
-        return m_engine.write(message, predicate, 1);
+        m_engine.write(message, predicate, 1);
+    }
+
+    template <class Engine> template<typename Predicate>
+    inline void client_socket<Engine>::send_request(const char * request, std::vector<char>& response, const Predicate& predicate)
+    {
+        m_engine.send_request(request, response.data(), response.size(), predicate, 1);
+    }
+
+    template <class Engine> template<typename Predicate>
+    inline void client_socket<Engine>::send_request(out_message& request, in_message& response, const Predicate& predicate)
+    {
+        try
+        {
+            class request_cleaner
+            {
+                out_message& m_request;
+            public:
+                request_cleaner(out_message& request) noexcept : m_request(request) {}
+                ~request_cleaner() { m_request.clear(); }
+            } cleaner(request);
+
+            response.clear();
+            send_request(request.get_data().data(), response.get_data(), predicate);
+        }
+        catch (...)
+        {
+            response.clear();
+            throw;
+        } 
     }
 
     template <>
@@ -361,12 +390,12 @@ namespace ipc
     }
     
     template <class Engine> template<class Predicate>
-    inline bool point_to_point_socket<Engine>::read_message(in_message& message, const Predicate& predicate)
+    inline void point_to_point_socket<Engine>::get_request(in_message& message, const Predicate& predicate)
     {
         message.clear();
         try
         {
-            return read_message(message.get_data(), predicate);
+            get_request(message.get_data(), predicate);
         }
         catch (...)
         {

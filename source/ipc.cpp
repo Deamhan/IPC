@@ -165,7 +165,7 @@ namespace ipc
         super::connect_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
     }
 
-    tcp_client_socket_engine::tcp_client_socket_engine(uint32_t address, uint16_t port) : os_point_to_point_socket_engine(INVALID_SOCKET)
+    tcp_client_socket_engine::tcp_client_socket_engine(uint32_t address, uint16_t port) : client_socket_engine(INVALID_SOCKET)
     {
         connect_proc(address, port);
     }
@@ -176,7 +176,7 @@ namespace ipc
     static inline int get_h_socket_error() noexcept { return h_errno; }
 #endif // _WIN32
 
-    tcp_client_socket_engine::tcp_client_socket_engine(std::string_view address, uint16_t port) : os_point_to_point_socket_engine(INVALID_SOCKET)
+    tcp_client_socket_engine::tcp_client_socket_engine(std::string_view address, uint16_t port) : client_socket_engine(INVALID_SOCKET)
     {
         auto info = gethostbyname(address.data());
         if (info == nullptr)
@@ -202,7 +202,7 @@ namespace ipc
 #endif
 
 #ifdef __AFUNIX_H__
-    unix_client_socket_engine::unix_client_socket_engine(std::string_view path) : os_point_to_point_socket_engine(INVALID_SOCKET)
+    unix_client_socket_engine::unix_client_socket_engine(std::string_view path) : client_socket_engine(INVALID_SOCKET)
     {
         if (!is_socket_exists(path.data()))
         {

@@ -45,12 +45,12 @@ namespace ipc
             try
             {
                 auto p2p_socket = m_server_socket.accept(*predicate);
-                p2p_socket.read_message(in_msg, *predicate);
+                p2p_socket.get_request(in_msg, *predicate);
     
                 uint32_t function = 0;
                 in_msg >> function;
                 d->invoke(function, in_msg, out_msg, p2p_socket);
-                p2p_socket.write_message(out_msg, *predicate);
+                p2p_socket.send_response(out_msg, *predicate);
                 p2p_socket.wait_for_shutdown(*predicate);
             }
             catch (...)
@@ -116,12 +116,10 @@ namespace ipc
         in_message response;
         while (true)
         {
-            client_socket.write_message(request, pred);
+            client_socket.send_request(request, response, pred);
             
             uint32_t callback_id = 0;
-            client_socket.read_message(response, pred);
             response >> callback_id;
-            request.clear();
     
             if (!dispatcher(callback_id, response, request))
             {
@@ -160,9 +158,9 @@ namespace ipc
             out_msg << id;
             if constexpr (sizeof...(args) != 0)
                 (out_msg << ... << args);
-            socket.write_message(out_msg, pred);
+            socket.send_response(out_msg, pred);
     
-            socket.read_message(in_msg, pred);
+            socket.get_request(in_msg, pred);
             if constexpr (std::is_same_v<void, R>)
                 return;
             else

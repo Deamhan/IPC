@@ -336,6 +336,18 @@ namespace ipc
         explicit message_overflow_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
+    class message_integrity_exception : public logic_error
+    {
+    public:
+        /**
+         * \brief exception constructor
+         *
+         * \param message exception message
+         */
+        template <class T>
+        explicit message_integrity_exception(T&& message) : logic_error(std::forward<T>(message)) {}
+    };
+
     /**
      * \brief Exception that was caused by active socket read error.
      */
@@ -827,7 +839,7 @@ namespace ipc
          * \return true if message has been read successfully.
          */
         template<class Predicate>
-        bool read_message(std::vector<char>& message, const Predicate& predicate);
+        void get_request(std::vector<char>& message, const Predicate& predicate);
 
         /**
          * \brief Reads message from channel.
@@ -841,7 +853,7 @@ namespace ipc
          * \return true if message has been read successfully.
          */
         template<class Predicate>
-        bool read_message(in_message& message, const Predicate& predicate);
+        void get_request(in_message& message, const Predicate& predicate);
 
         /**
           * \brief Writes raw message to channel. Use it only if you really need raw message form.
@@ -858,7 +870,7 @@ namespace ipc
           * \return true if message writing has been started successfully
           */
         template<class Predicate>
-        bool write_message(const char * message, const Predicate& predicate);
+        void send_response(const char * message, const Predicate& predicate);
 
         /**
           * \brief Writes message to channel.
@@ -875,7 +887,7 @@ namespace ipc
           * \return true if message writing has been started successfully
           */
         template<class Predicate>
-        bool write_message(out_message& message, const Predicate& predicate) { return write_message(message.get_data().data(), predicate); }
+        void send_response(out_message& message, const Predicate& predicate) { return send_response(message.get_data().data(), predicate); }
 
         /**
           * \brief Waits for shutdown signal.
@@ -919,7 +931,7 @@ namespace ipc
      * \brief Active (data) socket
      */
     template <class Engine>
-    class client_socket : public point_to_point_socket<Engine>
+    class client_socket : protected point_to_point_socket<Engine>
     {
     public:
         /**
@@ -929,6 +941,12 @@ namespace ipc
          */
         template <class... Args>
         explicit client_socket(Args&&... args) noexcept : point_to_point_socket(std::forward<Args>(args)...) {}
+
+        template<class Predicate>
+        void send_request(const char* request, std::vector<char>& response, const Predicate& predicate);
+
+        template<class Predicate>
+        void send_request(out_message& request, in_message& response, const Predicate& predicate);
     };
 
     /**
@@ -1019,7 +1037,20 @@ namespace ipc
         typedef os_socket_engine super;
     };
 
-    class unix_client_socket_engine final : public os_point_to_point_socket_engine
+    class client_socket_engine : public os_point_to_point_socket_engine
+    {
+    public:
+        client_socket_engine(socket_t s) : os_point_to_point_socket_engine(s) {}
+
+        template<class Predicate>
+        void send_request(const char* request, char* response, size_t response_size, const Predicate& predicate, uint16_t timeout_sec)
+        {
+            write(request, predicate, timeout_sec);
+            read(response, response_size, predicate, timeout_sec);
+        }
+    };
+
+    class unix_client_socket_engine final : public client_socket_engine
     {
     public:
         unix_client_socket_engine(std::string_view socket_link);
@@ -1038,7 +1069,7 @@ namespace ipc
         tcp_server_socket_engine(uint16_t port);
     };
 
-    class tcp_client_socket_engine final : public os_point_to_point_socket_engine
+    class tcp_client_socket_engine final : public client_socket_engine
     {
     public:
         tcp_client_socket_engine(uint32_t address, uint16_t port);

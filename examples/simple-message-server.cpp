@@ -54,7 +54,7 @@ static void process_request(ipc::tcp_server_socket* server_socket)
             {
                 ipc::in_message in;
                 ipc::out_message out;
-                p2p.read_message(in, predicate);
+                p2p.get_request(in, predicate);
 
                 uint32_t code;
                 in >> code;
@@ -70,8 +70,8 @@ static void process_request(ipc::tcp_server_socket* server_socket)
                     {
                         out.clear();
                         out << codes[i] << p;
-                        p2p.write_message(out, predicate);
-                        p2p.read_message(in, predicate);
+                        p2p.send_response(out, predicate);
+                        p2p.get_request(in, predicate);
                         in >> args[i];
                     }
 
@@ -90,7 +90,7 @@ static void process_request(ipc::tcp_server_socket* server_socket)
                     break;
                 }
 
-                p2p.write_message(out, predicate);
+                p2p.send_response(out, predicate);
                 p2p.wait_for_shutdown(predicate);
             }
             catch (const std::exception& ex)
