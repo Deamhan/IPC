@@ -89,24 +89,22 @@ namespace ipc
         }
     }
 
-#ifdef __AFUNIX_H__
-    template <typename T>
-    static inline auto make_client_socket(const std::tuple<T>& tuple)
+    template <class Engine, class Tuple, size_t... Indexes>
+    static inline auto make_client_socket(const Tuple& t, const std::index_sequence<Indexes...>&)
     {
-        return ipc::unix_client_socket(std::get<0>(tuple));
-    }
-#endif // __AFUNIX_H__
-
-    template <typename T1, typename T2>
-    static inline auto make_client_socket(const std::tuple<T1, T2>& tuple)
-    {
-        return ipc::tcp_client_socket(std::get<0>(tuple), std::get<1>(tuple));
+        return ipc::client_socket<Engine>(std::get<Indexes>(t)...);
     }
 
-    template <uint32_t Id, typename R, typename Tuple, typename Dispatcher, typename Predicate, typename... Args>
+    template <class Engine, class... Args>
+    static inline auto make_client_socket(const std::tuple<Args...>& tuple)
+    {
+        return make_client_socket<Engine>(tuple, std::make_index_sequence<sizeof...(Args)>());
+    }
+
+    template <uint32_t Id, typename R, class Engine, typename Tuple, typename Dispatcher, typename Predicate, typename... Args>
     inline R service_invoker::call_by_address(const Tuple& address, Dispatcher& dispatcher, const Predicate& pred, const Args&... args)
     {
-        auto client_socket = make_client_socket(address);
+        auto client_socket = make_client_socket<Engine>(address);
         
         out_message request;
         request << (uint32_t)Id;

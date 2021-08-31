@@ -87,7 +87,7 @@ namespace ipc
          *
          * \return result of remote call
          */
-        template <uint32_t Id, class R, typename Tuple, class Dispatcher, class Predicate, class... Args>
+        template <uint32_t Id, class R, class Engine, class Tuple, class Dispatcher, class Predicate, class... Args>
         R call_by_address(const Tuple& address, Dispatcher& dispatcher, const Predicate& predicate, const Args&... args);
 
         /**
@@ -116,7 +116,7 @@ namespace ipc
      *
      * This class takes care about thread pool creating, connections and messages handling.
      */
-    template <typename Server_socket>
+    template <class Engine>
     class rpc_server
     {
     public:
@@ -140,7 +140,7 @@ namespace ipc
         void run(const Dispatcher& dispatcher, const Predicate& predicate);
 
     protected:
-        Server_socket m_server_socket; ///< passive socket channel instance
+        server_socket<Engine> m_server_socket; ///< passive socket channel instance
 
         /**
          * \brief Thread pool worker routine.
