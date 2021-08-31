@@ -828,77 +828,15 @@ namespace ipc
     {
     public:
         /**
-         * \brief Reads raw message from channel. Use it only if you really need raw message form.
-         *          
-         * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function 
-         * will immediately return false and state of message will be invalid and must be reset.
+         * \brief Waits for shutdown signal.
          *
-         * \param message raw message buffer (length and data, see ipc::Message)
-         * \param predicate function of type bool() or similar callable object 
+         * \p predicate may be called several times to ask if the function should continue waiting for signal. If \p predicate returns false function
+         * will immediately return.
          *
-         * \return true if message has been read successfully.
+         * \param predicate function of type bool() or similar callable object
+         *
+         * \sa #shutdown.
          */
-        template<class Predicate>
-        void get_request(std::vector<char>& message, const Predicate& predicate);
-
-        /**
-         * \brief Reads message from channel.
-         *          
-         * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function 
-         * will immediately return false and state of message will be invalid and must be reset.
-         *
-         * \param message message object
-         * \param predicate function of type bool() or similar callable object 
-         *
-         * \return true if message has been read successfully.
-         */
-        template<class Predicate>
-        void get_request(in_message& message, const Predicate& predicate);
-
-        /**
-          * \brief Writes raw message to channel. Use it only if you really need raw message form.
-          *          
-          * \p predicate may be called several times to ask if the function should continue trying to write data. If \p predicate returns false function 
-          * will immediately return false and data will not be written.
-          * 
-          * \warning because of non blocking writing data may not be written immediatelly after function exit, so it is recommended to wait for some kind 
-          * of answer from another side and only after that destroy \p message.
-          *
-          * \param message object
-          * \param predicate function of type bool() or similar callable object 
-          *
-          * \return true if message writing has been started successfully
-          */
-        template<class Predicate>
-        void send_response(const char * message, const Predicate& predicate);
-
-        /**
-          * \brief Writes message to channel.
-          *          
-          * \p predicate may be called several times to ask if the function should continue trying to write data. If \p predicate returns false function 
-          * will immediately return false and data will not be written.
-          * 
-          * \warning because of non blocking writing data may not be written immediatelly after function exit, so it is recommended to wait for some kind 
-          * of answer from another side and only after that destroy \p message.
-          *
-          * \param message object
-          * \param predicate function of type bool() or similar callable object 
-          *
-          * \return true if message writing has been started successfully
-          */
-        template<class Predicate>
-        void send_response(out_message& message, const Predicate& predicate) { return send_response(message.get_data().data(), predicate); }
-
-        /**
-          * \brief Waits for shutdown signal.
-          *          
-          * \p predicate may be called several times to ask if the function should continue waiting for signal. If \p predicate returns false function 
-          * will immediately return.
-          *
-          * \param predicate function of type bool() or similar callable object 
-          *
-          * \sa #shutdown.
-          */
         template<class Predicate>
         void wait_for_shutdown(const Predicate& predicate) { m_engine.wait_for_shutdown(predicate, 1); }
 
@@ -931,7 +869,80 @@ namespace ipc
      * \brief Active (data) socket
      */
     template <class Engine>
-    class client_socket : protected point_to_point_socket<Engine>
+    class server_data_socket : public point_to_point_socket<Engine>
+    {
+    public:
+        template <class... Args>
+        explicit server_data_socket(Args&&... args) noexcept : point_to_point_socket(std::forward<Args>(args)...) {}
+
+        /**
+         * \brief Reads raw message from channel. Use it only if you really need raw message form.
+         *
+         * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function
+         * will immediately return false and state of message will be invalid and must be reset.
+         *
+         * \param message raw message buffer (length and data, see ipc::Message)
+         * \param predicate function of type bool() or similar callable object
+         *
+         * \return true if message has been read successfully.
+         */
+        template<class Predicate>
+        void get_request(std::vector<char>& message, const Predicate& predicate);
+
+        /**
+         * \brief Reads message from channel.
+         *
+         * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function
+         * will immediately return false and state of message will be invalid and must be reset.
+         *
+         * \param message message object
+         * \param predicate function of type bool() or similar callable object
+         *
+         * \return true if message has been read successfully.
+         */
+        template<class Predicate>
+        void get_request(in_message& message, const Predicate& predicate);
+
+        /**
+          * \brief Writes raw message to channel. Use it only if you really need raw message form.
+          *
+          * \p predicate may be called several times to ask if the function should continue trying to write data. If \p predicate returns false function
+          * will immediately return false and data will not be written.
+          *
+          * \warning because of non blocking writing data may not be written immediatelly after function exit, so it is recommended to wait for some kind
+          * of answer from another side and only after that destroy \p message.
+          *
+          * \param message object
+          * \param predicate function of type bool() or similar callable object
+          *
+          * \return true if message writing has been started successfully
+          */
+        template<class Predicate>
+        void send_response(const char* message, const Predicate& predicate);
+
+        /**
+          * \brief Writes message to channel.
+          *
+          * \p predicate may be called several times to ask if the function should continue trying to write data. If \p predicate returns false function
+          * will immediately return false and data will not be written.
+          *
+          * \warning because of non blocking writing data may not be written immediatelly after function exit, so it is recommended to wait for some kind
+          * of answer from another side and only after that destroy \p message.
+          *
+          * \param message object
+          * \param predicate function of type bool() or similar callable object
+          *
+          * \return true if message writing has been started successfully
+          */
+        template<class Predicate>
+        void send_response(out_message& message, const Predicate& predicate) { return send_response(message.get_data().data(), predicate); }
+    };
+
+    /**
+     * \brief Active (data) socket
+     */
+    template <class Engine>
+    class client_socket : public point_to_point_socket<Engine>
     {
     public:
         /**
@@ -966,7 +977,7 @@ namespace ipc
          * \return socket for data exchange
          */
         template<class Predicate>
-        point_to_point_socket<typename Engine::point_to_point_engine_t> accept(const Predicate& predicate);
+        server_data_socket<typename Engine::point_to_point_engine_t> accept(const Predicate& predicate);
 
         /**
         * \brief Default constructor

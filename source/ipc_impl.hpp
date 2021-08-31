@@ -156,9 +156,9 @@ namespace ipc
     #endif
     
     template <class Engine> template<typename Predicate>
-    inline point_to_point_socket<typename Engine::point_to_point_engine_t> server_socket<Engine>::accept(const Predicate& predicate)
+    inline server_data_socket<typename Engine::point_to_point_engine_t> server_socket<Engine>::accept(const Predicate& predicate)
     {
-        return point_to_point_socket<typename Engine::point_to_point_engine_t>(m_engine.accept(predicate, 1));
+        return server_data_socket<typename Engine::point_to_point_engine_t>(m_engine.accept(predicate, 1));
     }
     
     template <typename exception_t, typename... Args>
@@ -184,7 +184,7 @@ namespace ipc
     }
 
     template <class Engine> template<typename Predicate>
-    inline void point_to_point_socket<Engine>::get_request(std::vector<char>& message, const Predicate& predicate)
+    inline void server_data_socket<Engine>::get_request(std::vector<char>& message, const Predicate& predicate)
     {
         check_status<bad_socket_exception>(m_engine.is_ok(), __FUNCTION_NAME__);
 
@@ -200,7 +200,7 @@ namespace ipc
     }
     
     template <class Engine> template<typename Predicate>
-    inline void point_to_point_socket<Engine>::send_response(const char* message, const Predicate& predicate)
+    inline void server_data_socket<Engine>::send_response(const char* message, const Predicate& predicate)
     {
         check_status<bad_socket_exception>(m_engine.is_ok(), __FUNCTION_NAME__);
 
@@ -390,7 +390,7 @@ namespace ipc
     }
     
     template <class Engine> template<class Predicate>
-    inline void point_to_point_socket<Engine>::get_request(in_message& message, const Predicate& predicate)
+    inline void server_data_socket<Engine>::get_request(in_message& message, const Predicate& predicate)
     {
         message.clear();
         try

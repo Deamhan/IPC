@@ -44,14 +44,14 @@ namespace ipc
         {
             try
             {
-                auto p2p_socket = m_server_socket.accept(*predicate);
-                p2p_socket.get_request(in_msg, *predicate);
+                auto connection_socket = m_server_socket.accept(*predicate);
+                connection_socket.get_request(in_msg, *predicate);
     
                 uint32_t function = 0;
                 in_msg >> function;
-                d->invoke(function, in_msg, out_msg, p2p_socket);
-                p2p_socket.send_response(out_msg, *predicate);
-                p2p_socket.wait_for_shutdown(*predicate);
+                d->invoke(function, in_msg, out_msg, connection_socket);
+                connection_socket.send_response(out_msg, *predicate);
+                connection_socket.wait_for_shutdown(*predicate);
             }
             catch (...)
             {
@@ -137,7 +137,7 @@ namespace ipc
     }
     
     template <uint32_t id, typename R, typename Predicate, class Engine, typename... Args>
-    R service_invoker::call_by_channel(point_to_point_socket<Engine>& socket, in_message& in_msg, out_message& out_msg, const Predicate& pred, const Args&... args)
+    R service_invoker::call_by_channel(server_data_socket<Engine>& socket, in_message& in_msg, out_message& out_msg, const Predicate& pred, const Args&... args)
     {
         try
         {

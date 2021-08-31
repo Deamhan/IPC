@@ -106,7 +106,7 @@ namespace ipc
          * \return result of remote call
          */
         template <uint32_t Id, class R, class Predicate, class Engine, class... Args>
-        R call_by_channel(point_to_point_socket<Engine>& socket, in_message& in_msg, out_message& out_msg, const Predicate& predicate, const Args&... args);
+        R call_by_channel(server_data_socket<Engine>& socket, in_message& in_msg, out_message& out_msg, const Predicate& predicate, const Args&... args);
     };
 
     /**

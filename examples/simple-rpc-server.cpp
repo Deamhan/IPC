@@ -46,7 +46,7 @@ class dispatcher
 {
 public:
     template <class Engine>
-    void invoke(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg, ipc::point_to_point_socket<Engine>& p2p_socket) const
+    void invoke(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg, ipc::server_data_socket<Engine>& p2p_socket) const
     {
         switch ((simple_server_function_t)id)
         {
