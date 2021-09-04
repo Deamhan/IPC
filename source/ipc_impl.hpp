@@ -445,4 +445,95 @@ namespace ipc
     
         return *this;
     }
+
+#ifdef _WIN32
+    typedef NTSTATUS(NTAPI* NtAlpcCreatePort_t)(PHANDLE PortHandle, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes);
+    typedef VOID(NTAPI* RtlInitUnicodeString_t)(PUNICODE_STRING DestinationString, PCWSTR SourceString);
+    typedef NTSTATUS(NTAPI* NtAlpcSendWaitReceivePort_t)(HANDLE PortHandle, ULONG Flags, PPORT_MESSAGE SendMsg, PALPC_MESSAGE_ATTRIBUTES SendMessageAttributes,
+        PPORT_MESSAGE ReceiveMessage, PSIZE_T BufferLength, PALPC_MESSAGE_ATTRIBUTES ReceiveMessageAttributes, PLARGE_INTEGER Timeout);
+    typedef NTSTATUS(NTAPI* NtAlpcAcceptConnectPort_t)(PHANDLE ConnectionPortHandle, HANDLE PortHandle, ULONG Flags, POBJECT_ATTRIBUTES ObjectAttributes,
+        PALPC_PORT_ATTRIBUTES PortAttributes, PVOID PortContext, PPORT_MESSAGE ConnectionRequest, PALPC_MESSAGE_ATTRIBUTES ConnectionMessageAttributes,
+        BOOLEAN AcceptConnection);
+    typedef NTSTATUS(NTAPI* AlpcInitializeMessageAttribute_t)(ULONG AttributeFlags, PALPC_MESSAGE_ATTRIBUTES Buffer, ULONG BufferSize, PSIZE_T RequiredBufferSize);
+    typedef PVOID(NTAPI* AlpcGetMessageAttribute_t)(PALPC_MESSAGE_ATTRIBUTES Buffer, ULONG AttributeFlag);
+    typedef NTSTATUS(NTAPI* NtAlpcConnectPort_t)(PHANDLE PortHandle, PUNICODE_STRING PortName, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes,
+        ULONG Flags, PSID RequiredServerSid, PPORT_MESSAGE ConnectionMessage, PULONG BufferLength, PALPC_MESSAGE_ATTRIBUTES OutMessageAttributes,
+        PALPC_MESSAGE_ATTRIBUTES InMessageAttributes, PLARGE_INTEGER Timeout);
+
+    struct Ntdll
+    {
+        NtAlpcCreatePort_t NtAlpcCreatePort;
+        RtlInitUnicodeString_t RtlInitUnicodeString;
+        NtAlpcSendWaitReceivePort_t NtAlpcSendWaitReceivePort;
+        NtAlpcAcceptConnectPort_t NtAlpcAcceptConnectPort;
+        AlpcInitializeMessageAttribute_t AlpcInitializeMessageAttribute;
+        AlpcGetMessageAttribute_t AlpcGetMessageAttribute;
+        NtAlpcConnectPort_t NtAlpcConnectPort;
+
+        Ntdll() noexcept;
+    };
+
+    extern Ntdll ntdll;
+
+    template<class Predicate>
+    alpc_connection* alpc_server_engine::accept(const Predicate& predicate, uint16_t timeout_sec)
+    {
+        m_accept_slot.pop(m_buffer.data(), m_buffer.size());
+        auto new_connection = std::make_unique<alpc_connection>(nullptr);
+        HANDLE new_connection_handle = nullptr;
+        auto status = ntdll.NtAlpcAcceptConnectPort(&new_connection_handle, m_alpc_port, 0, nullptr, nullptr, new_connection.get(), (PPORT_MESSAGE)m_buffer.data(), nullptr, TRUE);
+        if (!NT_SUCCESS(status))
+            throw socket_accept_exception(status, __FUNCTION_NAME__);
+
+        new_connection->m_connection_handle = new_connection_handle;
+        return new_connection.release();  
+    }
+
+    template<class Predicate>
+    size_t alpc_server_data_engine::read(char* message, size_t size, const Predicate& predicate, uint16_t timeout_sec)
+    {
+        m_connection->m_slot.pop(m_buffer.data(), m_buffer.size());
+        PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
+        m_id = msg->MessageId;
+        size_t len = std::min<size_t>(size, msg->u1.s1.DataLength);
+        memcpy(message, msg + 1, len);
+
+        return len;
+    }
+
+    template<class Predicate>
+    void alpc_server_data_engine::write(const char* message, const Predicate& predicate, uint16_t timeout_sec)
+    {
+        PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
+        memset(msg, 0, sizeof(PORT_MESSAGE));
+        size_t size = std::min<size_t>(*(__MSG_LENGTH_TYPE__*)message + sizeof(PORT_MESSAGE), m_buffer.size());
+        msg->u1.s1.TotalLength = size;
+        msg->u1.s1.DataLength = msg->u1.s1.TotalLength - sizeof(PORT_MESSAGE);
+        msg->MessageId = m_id;
+        memcpy(msg + 1, message, msg->u1.s1.DataLength);
+
+        auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, ALPC_MSGFLG_RELEASE_MESSAGE, msg, nullptr, nullptr, nullptr, nullptr, nullptr);
+        if (!NT_SUCCESS(status))
+            fail_status<socket_write_exception>(m_ok, status, __FUNCTION_NAME__);
+    }
+
+    template<class Predicate>
+    void alpc_client_engine::send_request(const char* request, char* response, size_t response_size, const Predicate& predicate, uint16_t timeout_sec)
+    {
+        size_t request_size = std::min<size_t>(*(__MSG_LENGTH_TYPE__*)request + sizeof(PORT_MESSAGE), m_buffer.size());
+        PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
+        memset(msg, 0, sizeof(PORT_MESSAGE));
+        msg->u1.s1.TotalLength = request_size;
+        msg->u1.s1.DataLength = msg->u1.s1.TotalLength - sizeof(PORT_MESSAGE);
+        memcpy(msg + 1, request, msg->u1.s1.DataLength);
+
+        SIZE_T len = std::min<SIZE_T>(m_buffer.size(), response_size + sizeof(PORT_MESSAGE));
+        auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, 0, msg, nullptr, msg, &len, nullptr, nullptr);
+        if (!NT_SUCCESS(status))
+            fail_status<socket_read_exception>(m_ok, status, __FUNCTION_NAME__);
+
+        memcpy(response, msg + 1, msg->u1.s1.DataLength);
+    }
+
+#endif // _WIN32
 }

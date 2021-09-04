@@ -8,7 +8,9 @@
 */
 
 #include <algorithm>
+#include <condition_variable>
 #include <filesystem>
+#include <mutex>
 #include <string.h>
 #include <thread>
 
@@ -415,4 +417,100 @@ namespace ipc
 
         return *this;
     }
+
+#ifdef _WIN32
+    Ntdll::Ntdll() noexcept
+    {
+        auto h_ntdll = GetModuleHandleA("ntdll");
+        NtAlpcCreatePort = (NtAlpcCreatePort_t)GetProcAddress(h_ntdll, "NtAlpcCreatePort");
+        RtlInitUnicodeString = (RtlInitUnicodeString_t)GetProcAddress(h_ntdll, "RtlInitUnicodeString");
+        NtAlpcSendWaitReceivePort = (NtAlpcSendWaitReceivePort_t)GetProcAddress(h_ntdll, "NtAlpcSendWaitReceivePort");
+        NtAlpcAcceptConnectPort = (NtAlpcAcceptConnectPort_t)GetProcAddress(h_ntdll, "NtAlpcAcceptConnectPort");
+        AlpcInitializeMessageAttribute = (AlpcInitializeMessageAttribute_t)GetProcAddress(h_ntdll, "AlpcInitializeMessageAttribute");
+        AlpcGetMessageAttribute = (AlpcGetMessageAttribute_t)GetProcAddress(h_ntdll, "AlpcGetMessageAttribute");
+        NtAlpcConnectPort = (NtAlpcConnectPort_t)GetProcAddress(h_ntdll, "NtAlpcConnectPort");
+    }
+
+    Ntdll ntdll;
+
+    alpc_server_engine::alpc_server_engine(const wchar_t* port_name) : alpc_engine(nullptr), m_buffer(msg_max_length + sizeof(PORT_MESSAGE))
+    {
+        UNICODE_STRING us;
+        ntdll.RtlInitUnicodeString(&us, port_name);
+
+        OBJECT_ATTRIBUTES oa;
+        InitializeObjectAttributes(&oa, &us, 0, nullptr, nullptr);
+
+        ALPC_PORT_ATTRIBUTES server_port_attributes = {};
+        server_port_attributes.MaxMessageLength = /*m_buffer.size()*/65000;
+
+        auto status = ntdll.NtAlpcCreatePort(&m_alpc_port, &oa, &server_port_attributes);
+        if (!NT_SUCCESS(status))
+            fail_status<passive_socket_prepare_exception>(m_ok, status, std::string(__FUNCTION_NAME__) + ": unable to create ALPC port");
+
+        SIZE_T req = 0;
+        status = ntdll.AlpcInitializeMessageAttribute(ALPC_MESSAGE_CONTEXT_ATTRIBUTE, (PALPC_MESSAGE_ATTRIBUTES)m_attr_buffer, sizeof(m_attr_buffer), &req);
+        if (!NT_SUCCESS(status))
+            fail_status<passive_socket_prepare_exception>(m_ok, status, std::string(__FUNCTION_NAME__) + ": unable to initialize message attributes");
+
+        m_listener = std::thread(&alpc_server_engine::listen_proc, this);
+    }
+
+    void alpc_server_engine::listen_proc()
+    {
+        PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
+        auto attr = (PALPC_MESSAGE_ATTRIBUTES)m_attr_buffer;
+        while (true)
+        {
+            SIZE_T len = m_buffer.size();
+            auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, 0, nullptr, nullptr, msg, &len, attr, nullptr);
+            if (!NT_SUCCESS(status))
+                return;
+
+            switch (msg->u2.s2.Type & 0xFFF)
+            {
+            case LPC_CONNECTION_REQUEST:
+            {
+                HANDLE h = nullptr;
+                auto id = msg->MessageId;
+                memset(msg, 0, sizeof(PORT_MESSAGE));
+                msg->u1.s1.DataLength = 0;
+                msg->u1.s1.TotalLength = sizeof(PORT_MESSAGE);
+                msg->MessageId = id;
+                if (!m_accept_slot.try_push(msg))
+                    ntdll.NtAlpcAcceptConnectPort(&m_alpc_port, &h, 0, nullptr, nullptr, nullptr, msg, nullptr, FALSE);
+                    
+                break;
+            }    
+            case LPC_DATAGRAM:
+                break;
+            case LPC_REQUEST:
+            default:
+            {
+                alpc_connection* connection = *(alpc_connection**)ntdll.AlpcGetMessageAttribute(attr, ALPC_MESSAGE_CONTEXT_ATTRIBUTE);
+                connection->m_slot.push(msg);
+                break;
+            }
+            }
+        }
+    }
+
+    alpc_client_engine::alpc_client_engine(const wchar_t* port_name) : alpc_point_to_point_connection_engine(nullptr), m_buffer(msg_max_length + sizeof(PORT_MESSAGE))
+    {
+        UNICODE_STRING us;
+        ntdll.RtlInitUnicodeString(&us, port_name);
+
+        auto status = ntdll.NtAlpcConnectPort(&m_alpc_port, &us, nullptr, nullptr, ALPC_MSGFLG_SYNC_REQUEST, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+        if (!NT_SUCCESS(status))
+            fail_status<active_socket_prepare_exception>(m_ok, status, std::string(__FUNCTION_NAME__) + ": unable to connect");
+    }
+
+    void alpc_engine::close() 
+    {
+        if (m_alpc_port != nullptr)
+            CloseHandle(m_alpc_port);
+
+        m_alpc_port = nullptr;
+    }
+#endif // _WIN32
 }

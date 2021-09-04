@@ -20,6 +20,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -31,6 +32,7 @@
 #   ifdef __AFUNIX_H__
 #       include <afunix.h>
 #   endif // __AFUNIX_H__
+#   include "alpc.h"
 #   define PATH_SEP '\\'
     typedef SOCKET socket_t;
 #else
@@ -1093,6 +1095,156 @@ namespace ipc
 
     typedef server_socket<tcp_server_socket_engine> tcp_server_socket;
     typedef client_socket<tcp_client_socket_engine> tcp_client_socket;
+
+#ifdef _WIN32
+    class alpc_engine
+    {
+    public:
+        void close();
+        ~alpc_engine() { close(); }
+        bool& is_ok() { return m_ok; }
+
+    protected:
+        HANDLE m_alpc_port;
+        bool m_ok;
+
+        alpc_engine(HANDLE alpc_port) noexcept: m_alpc_port(alpc_port), m_ok(true) {}
+    };
+
+    class alpc_point_to_point_connection_engine : public alpc_engine
+    {
+    public:
+        void shutdown() { close(); }
+
+        template<class Predicate>
+        void wait_for_shutdown(const Predicate& predicate, uint16_t timeout_sec) {}
+
+        alpc_point_to_point_connection_engine(HANDLE alpc_port) noexcept : alpc_engine(alpc_port) {}
+    };
+
+    class alpc_client_engine : public alpc_point_to_point_connection_engine
+    {
+    public:
+        alpc_client_engine(const wchar_t* port_name);
+        
+        template<class Predicate>
+        void send_request(const char* request, char* response, size_t response_size, const Predicate& predicate, uint16_t timeout_sec);
+
+    private:
+        std::vector<char> m_buffer;
+    };
+
+    class blocking_slot
+    {
+    public:
+        void push(PPORT_MESSAGE msg)
+        {
+            std::unique_lock<std::mutex> lm(m_lock);
+            push(msg, lm);
+        }
+
+        bool try_push(PPORT_MESSAGE msg)
+        {
+            if (!(m_push_flag && m_lock.try_lock()))
+                return false;
+
+            std::unique_lock<std::mutex> lm(m_lock, std::adopt_lock_t());
+            if (m_push_flag)
+            {
+                push(msg, lm);
+                return true;
+            }
+            else
+                return false;
+        }
+
+        void pop(char* buffer, size_t size)
+        {
+            std::unique_lock<std::mutex> lm(m_lock);
+            m_pop_cv.wait(lm, [this]() noexcept { return m_pop_flag; });
+            PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
+            msg->u1.s1.TotalLength = std::min<size_t>(msg->u1.s1.TotalLength, size);
+            msg->u1.s1.DataLength = msg->u1.s1.TotalLength - sizeof(PORT_MESSAGE);
+            memcpy(buffer, m_buffer.data(), msg->u1.s1.TotalLength);
+            m_pop_flag = false;
+            m_push_flag = true;
+            m_push_cv.notify_one();
+        }
+
+        blocking_slot() : m_push_flag(true), m_pop_flag(false), m_buffer(msg_max_length + sizeof(PORT_MESSAGE))
+        {}
+
+    private:
+        std::condition_variable m_push_cv;
+        std::condition_variable m_pop_cv;
+        bool m_push_flag;
+        bool m_pop_flag;
+        std::mutex m_lock;
+
+        std::vector<char> m_buffer;
+
+        void push(PPORT_MESSAGE msg, std::unique_lock<std::mutex>& lm)
+        {
+            m_push_cv.wait(lm, [this]() noexcept { return m_push_flag; });
+            size_t size = std::min<size_t>(msg->u1.s1.TotalLength, m_buffer.size());
+            memcpy(m_buffer.data(), msg, size);
+            msg = (PPORT_MESSAGE)m_buffer.data();
+            msg->u1.s1.TotalLength = size;
+            msg->u1.s1.DataLength = size - sizeof(PORT_MESSAGE);
+            m_push_flag = false;
+            m_pop_flag = true;
+            m_pop_cv.notify_one();
+        }
+    };
+
+    struct alpc_connection
+    {
+        blocking_slot m_slot;
+        HANDLE m_connection_handle;
+        std::vector<char> m_buffer;
+
+        alpc_connection(HANDLE connection) : m_connection_handle(connection), m_buffer(msg_max_length + sizeof(PORT_MESSAGE)) {}
+    };
+
+    class alpc_server_data_engine : public alpc_point_to_point_connection_engine
+    {
+    public:
+        template<class Predicate>
+        size_t read(char* message, size_t size, const Predicate& predicate, uint16_t timeout_sec);
+
+        template<class Predicate>
+        void write(const char* message, const Predicate& predicate, uint16_t timeout_sec);
+
+    private:
+        alpc_connection* m_connection;
+        ULONG m_id;
+        std::vector<char> m_buffer;
+        alpc_server_data_engine(alpc_connection* connection) noexcept : alpc_point_to_point_connection_engine(connection->m_connection_handle), 
+            m_connection(connection), m_id(0), m_buffer(msg_max_length + sizeof(PORT_MESSAGE)) {}
+
+        friend class socket<alpc_server_data_engine>;
+    };
+
+    class alpc_server_engine : public alpc_engine
+    {
+    public:
+        alpc_server_engine(const wchar_t* port_name);
+
+        typedef alpc_server_data_engine point_to_point_engine_t;
+
+        template<class Predicate>
+        alpc_connection* accept(const Predicate& predicate, uint16_t timeout_sec);
+
+    private:
+        std::thread m_listener;
+        void listen_proc();
+
+        std::vector<char> m_buffer;
+        char m_attr_buffer[64];
+
+        blocking_slot m_accept_slot;
+    };
+#endif // _WIN32
     
 }
 
