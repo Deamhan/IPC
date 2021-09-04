@@ -45,9 +45,9 @@ static void process_request(ipc::server_socket<server_engine_t>* server_socket)
 {
     try
     {
+        auto predicate = []() { return !g_stop; };
         while (!g_stop)
         {
-            auto predicate = []() { return !g_stop; };
             auto connection_socket = server_socket->accept(predicate);
 
             try

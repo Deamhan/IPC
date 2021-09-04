@@ -105,7 +105,7 @@ namespace ipc
     inline void os_point_to_point_socket_engine::wait_for_shutdown(const Predicate& predicate, uint16_t timeout_sec)
     {
         if (!wait_for<true>(m_socket, predicate, timeout_sec))
-            fail_status<socket_read_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
+            fail_status<socket_read_exception>(m_ok, 0, __FUNCTION_NAME__);
     }
 
     template<typename Predicate>
@@ -458,6 +458,7 @@ namespace ipc
         AlpcInitializeMessageAttribute_t AlpcInitializeMessageAttribute;
         AlpcGetMessageAttribute_t AlpcGetMessageAttribute;
         NtAlpcConnectPort_t NtAlpcConnectPort;
+        RtlNtStatusToDosError_t RtlNtStatusToDosError;
 
         Ntdll() noexcept;
     };
@@ -535,7 +536,7 @@ namespace ipc
         HANDLE new_connection_handle = nullptr;
         auto status = ntdll.NtAlpcAcceptConnectPort(&new_connection_handle, m_alpc_port, 0, nullptr, nullptr, new_connection.get(), (PPORT_MESSAGE)m_buffer.data(), nullptr, TRUE);
         if (!NT_SUCCESS(status))
-            throw socket_accept_exception(status, __FUNCTION_NAME__);
+            throw socket_accept_exception(ntdll.RtlNtStatusToDosError(status), __FUNCTION_NAME__);
 
         new_connection->m_connection_handle = new_connection_handle;
         return new_connection.release();  
@@ -548,6 +549,9 @@ namespace ipc
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         if (size < msg->u1.s1.DataLength)
             throw message_integrity_exception(__FUNCTION_NAME__);
+
+        if ((msg->u2.s2.Type & 0xfff) != LPC_REQUEST)
+            fail_status<socket_read_exception>(m_ok, 0, __FUNCTION_NAME__);
 
         m_id = msg->MessageId;
         memcpy(message, msg + 1, msg->u1.s1.DataLength);
@@ -571,7 +575,7 @@ namespace ipc
 
         auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, ALPC_MSGFLG_RELEASE_MESSAGE, msg, nullptr, nullptr, nullptr, nullptr, nullptr);
         if (!NT_SUCCESS(status))
-            fail_status<socket_write_exception>(m_ok, status, __FUNCTION_NAME__);
+            fail_status<socket_write_exception>(m_ok, ntdll.RtlNtStatusToDosError(status), __FUNCTION_NAME__);
     }
 
     template<class Predicate>
@@ -593,7 +597,7 @@ namespace ipc
 
         auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, 0, msg, nullptr, msg, &len, nullptr, nullptr);
         if (!NT_SUCCESS(status))
-            fail_status<socket_read_exception>(m_ok, status, __FUNCTION_NAME__);
+            fail_status<socket_read_exception>(m_ok, ntdll.RtlNtStatusToDosError(status), __FUNCTION_NAME__);
 
         memcpy(response, msg + 1, msg->u1.s1.DataLength);
     }

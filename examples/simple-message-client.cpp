@@ -85,8 +85,11 @@ int main()
         add_args args = { 3, 4 };
         int32_t a = 7, b = 8;
 
-        std::cout << "add(" << args.a << ", " << args.b << ") = " << call_add_with_callbacks(&args) << std::endl;
-        std::cout << "add(" << a << ", " << b << ") = " << call_add(a, b) << std::endl;
+        auto result = call_add_with_callbacks(&args);
+        std::cout << "add(" << args.a << ", " << args.b << ") = " << result << std::endl;
+
+        result = call_add(a, b);
+        std::cout << "add(" << a << ", " << b << ") = " << result << std::endl;
     
         return 0;
     }

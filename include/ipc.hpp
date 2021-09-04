@@ -862,7 +862,7 @@ namespace ipc
          * \param s socket handle
          */
         template <class... Args>
-        explicit point_to_point_socket(Args&&... args) noexcept : socket<Engine>(std::forward<Args>(args)...) {}
+        explicit point_to_point_socket(Args&&... args) : socket<Engine>(std::forward<Args>(args)...) {}
 
         template <class T>
         friend class server_socket;
@@ -954,7 +954,7 @@ namespace ipc
          * \param s socket handle
          */
         template <class... Args>
-        explicit client_socket(Args&&... args) noexcept : point_to_point_socket<Engine>(std::forward<Args>(args)...) {}
+        explicit client_socket(Args&&... args) : point_to_point_socket<Engine>(std::forward<Args>(args)...) {}
 
         template<class Predicate>
         void send_request(const char* request, std::vector<char>& response, const Predicate& predicate);
@@ -1101,9 +1101,9 @@ namespace ipc
     class alpc_engine
     {
     public:
-        void close();
+        void close() noexcept;
         ~alpc_engine() { close(); }
-        bool& is_ok() { return m_ok; }
+        bool& is_ok() noexcept { return m_ok; }
 
     protected:
         HANDLE m_alpc_port;
@@ -1115,10 +1115,10 @@ namespace ipc
     class alpc_point_to_point_connection_engine : public alpc_engine
     {
     public:
-        void shutdown() { close(); }
+        void shutdown() noexcept { close(); }
 
         template<class Predicate>
-        void wait_for_shutdown(const Predicate& predicate, uint16_t timeout_sec) {}
+        void wait_for_shutdown(const Predicate& predicate, uint16_t timeout_sec) noexcept {}
 
         alpc_point_to_point_connection_engine(HANDLE alpc_port) noexcept : alpc_engine(alpc_port) {}
     };
@@ -1178,7 +1178,7 @@ namespace ipc
         void write(const char* message, const Predicate& predicate, uint16_t timeout_sec);
 
     private:
-        alpc_connection* m_connection;
+        std::unique_ptr<alpc_connection> m_connection;
         ULONG m_id;
         std::vector<char> m_buffer;
         alpc_server_data_engine(alpc_connection* connection) noexcept : alpc_point_to_point_connection_engine(connection->m_connection_handle), 

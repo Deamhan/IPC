@@ -103,3 +103,4 @@ typedef PVOID(NTAPI* AlpcGetMessageAttribute_t)(PALPC_MESSAGE_ATTRIBUTES Buffer,
 typedef NTSTATUS(NTAPI* NtAlpcConnectPort_t)(PHANDLE PortHandle, PUNICODE_STRING PortName, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes,
 	ULONG Flags, PSID RequiredServerSid, PPORT_MESSAGE ConnectionMessage, PULONG BufferLength, PALPC_MESSAGE_ATTRIBUTES OutMessageAttributes,
 	PALPC_MESSAGE_ATTRIBUTES InMessageAttributes, PLARGE_INTEGER Timeout);
+typedef ULONG (NTAPI* RtlNtStatusToDosError_t)(NTSTATUS Status);
