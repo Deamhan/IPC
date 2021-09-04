@@ -49,6 +49,27 @@ namespace ipc
         return (count >= 0);
     }
 
+    template<typename callable_t, typename... Args>
+    [[noreturn]] static void fail_status(callable_t& c, bool& status, Args&&... args)
+    {
+        status = false;
+        c(std::forward<Args>(args)...);
+        throw std::logic_error(std::string("Implementation internal error (noreturn is required): ") + __FUNCTION_NAME__);
+    }
+
+    template <typename exception_t, typename... Args>
+    [[noreturn]] static inline void fail_status(bool& status, Args&&... args)
+    {
+        status = false;
+        throw exception_t(std::forward<Args>(args)...);
+    }
+
+#ifdef _WIN32
+    static inline int get_socket_error() noexcept { return WSAGetLastError(); }
+#else
+    static inline int get_socket_error() noexcept { return errno; }
+#endif
+
     template<typename Predicate>
     socket_t os_server_socket_engine::accept(const Predicate& predicate, uint16_t timeout_sec)
     {
@@ -149,16 +170,10 @@ namespace ipc
         } while (true);
     }
     
-    #ifdef _WIN32
-    static inline int get_socket_error() noexcept { return WSAGetLastError(); }
-    #else
-    static inline int get_socket_error() noexcept { return errno; }
-    #endif
-    
     template <class Engine> template<typename Predicate>
     inline server_data_socket<typename Engine::point_to_point_engine_t> server_socket<Engine>::accept(const Predicate& predicate)
     {
-        return server_data_socket<typename Engine::point_to_point_engine_t>(m_engine.accept(predicate, 1));
+        return server_data_socket<typename Engine::point_to_point_engine_t>(this->m_engine.accept(predicate, 1));
     }
     
     template <typename exception_t, typename... Args>
@@ -176,19 +191,12 @@ namespace ipc
         return true;
     }
 
-    template <typename exception_t, typename... Args>
-    [[noreturn]] static inline void fail_status(bool& status, Args&&... args)
-    {
-        status = false;
-        throw exception_t(std::forward<Args>(args)...);
-    }
-
     template <class Engine> template<typename Predicate>
     inline void server_data_socket<Engine>::get_request(std::vector<char>& message, const Predicate& predicate)
     {
-        check_status<bad_socket_exception>(m_engine.is_ok(), __FUNCTION_NAME__);
+        check_status<bad_socket_exception>(this->m_engine.is_ok(), __FUNCTION_NAME__);
 
-        size_t read = m_engine.read(message.data(), message.size(), predicate, 1);
+        size_t read = this->m_engine.read(message.data(), message.size(), predicate, 1);
         bool ok = false;
         if (read >= sizeof(__MSG_LENGTH_TYPE__))
         {
@@ -196,21 +204,21 @@ namespace ipc
             ok = (read == size);
         }
 
-        update_status<message_integrity_exception>(m_engine.is_ok(), ok, __FUNCTION_NAME__);
+        update_status<message_integrity_exception>(this->m_engine.is_ok(), ok, __FUNCTION_NAME__);
     }
     
     template <class Engine> template<typename Predicate>
     inline void server_data_socket<Engine>::send_response(const char* message, const Predicate& predicate)
     {
-        check_status<bad_socket_exception>(m_engine.is_ok(), __FUNCTION_NAME__);
+        check_status<bad_socket_exception>(this->m_engine.is_ok(), __FUNCTION_NAME__);
 
-        m_engine.write(message, predicate, 1);
+        this->m_engine.write(message, predicate, 1);
     }
 
     template <class Engine> template<typename Predicate>
     inline void client_socket<Engine>::send_request(const char * request, std::vector<char>& response, const Predicate& predicate)
     {
-        m_engine.send_request(request, response.data(), response.size(), predicate, 1);
+        this->m_engine.send_request(request, response.data(), response.size(), predicate, 1);
     }
 
     template <class Engine> template<typename Predicate>
@@ -301,13 +309,6 @@ namespace ipc
     [[noreturn]] void throw_type_mismatch_exception(const char* func_name, const char* tag, const char* expected);
     [[noreturn]] void throw_message_too_short_exception(const char* func_name, size_t req_size, size_t total_size);
     [[noreturn]] void throw_container_overflow_exception(const char* func_name, size_t req_size, size_t total_size);
-
-    template<typename callable_t, typename... Args>
-    [[noreturn]] static void fail_status(callable_t& c, bool& status, Args&&... args)
-    {
-        status = false;
-        c(std::forward<Args>(args)...);
-    }
 
     template <message::type_tag Tag, typename T, typename>
     inline out_message& out_message::push(T arg)

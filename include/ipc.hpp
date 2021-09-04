@@ -460,6 +460,7 @@ namespace ipc
 
         void close() noexcept { m_engine.close(); }; ///< closes socket
         ~socket() { close(); }
+
     protected:
         Engine m_engine;
         
@@ -840,18 +841,18 @@ namespace ipc
          * \sa #shutdown.
          */
         template<class Predicate>
-        void wait_for_shutdown(const Predicate& predicate) { m_engine.wait_for_shutdown(predicate, 1); }
+        void wait_for_shutdown(const Predicate& predicate) { this->m_engine.wait_for_shutdown(predicate, 1); }
 
         /**
           * \brief Sends shutdown signal.
           *
           * \sa #wait_for_shutdown.
           */
-        void shutdown() noexcept { m_engine.shutdown(); };
+        void shutdown() noexcept { this->m_engine.shutdown(); };
 
         ~point_to_point_socket() { shutdown(); }
     protected:
-        typedef socket super; ///< super class typedef
+        typedef socket<Engine> super; ///< super class typedef
 
         /**
          * \brief Socket handle based constructor
@@ -861,7 +862,7 @@ namespace ipc
          * \param s socket handle
          */
         template <class... Args>
-        explicit point_to_point_socket(Args&&... args) noexcept : socket(std::forward<Args>(args)...) {}
+        explicit point_to_point_socket(Args&&... args) noexcept : socket<Engine>(std::forward<Args>(args)...) {}
 
         template <class T>
         friend class server_socket;
@@ -875,7 +876,7 @@ namespace ipc
     {
     public:
         template <class... Args>
-        explicit server_data_socket(Args&&... args) noexcept : point_to_point_socket(std::forward<Args>(args)...) {}
+        explicit server_data_socket(Args&&... args) noexcept : point_to_point_socket<Engine>(std::forward<Args>(args)...) {}
 
         /**
          * \brief Reads raw message from channel. Use it only if you really need raw message form.
@@ -953,7 +954,7 @@ namespace ipc
          * \param s socket handle
          */
         template <class... Args>
-        explicit client_socket(Args&&... args) noexcept : point_to_point_socket(std::forward<Args>(args)...) {}
+        explicit client_socket(Args&&... args) noexcept : point_to_point_socket<Engine>(std::forward<Args>(args)...) {}
 
         template<class Predicate>
         void send_request(const char* request, std::vector<char>& response, const Predicate& predicate);
@@ -987,7 +988,7 @@ namespace ipc
         * Creates server socket instance
         */
         template <class... Args>
-        server_socket(Args&&... args) noexcept : socket(std::forward<Args>(args)...) {}
+        server_socket(Args&&... args) noexcept : socket<Engine>(std::forward<Args>(args)...) {}
     };
 
     class os_socket_engine
