@@ -94,7 +94,7 @@ int main()
         std::setlocale(LC_ALL, "");
         install_signal_handlers(signal_handler);
 
-        ipc::rpc_server<ipc::tcp_server_socket_engine> server(port);
+        ipc::rpc_server<server_engine_t> server(port);
         server.run(dispatcher(), predicate);
     }
     catch(const std::exception& ex) 

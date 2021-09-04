@@ -10,11 +10,9 @@ struct add_args
     int32_t b;
 };
 
-static const char* host = "localhost";
-
 int32_t call_add_with_callbacks(add_args * args)
 {
-    ipc::tcp_client_socket client_socket(host, port);
+    ipc::client_socket<client_engine_t> client_socket(ADDRESS_ARGS);
 
     ipc::out_message out;
     out << (uint32_t)simple_server_function_t::add_with_callbacks << ipc::message::remote_ptr<true>(args);
@@ -62,7 +60,7 @@ int32_t call_add_with_callbacks(add_args * args)
 
 int32_t call_add(int32_t a, int32_t b)
 {
-    ipc::tcp_client_socket client_socket(host, port);
+    ipc::client_socket<client_engine_t> client_socket(ADDRESS_ARGS);
 
     ipc::out_message out;
     out << (uint32_t)simple_server_function_t::add << a << b;

@@ -1138,39 +1138,10 @@ namespace ipc
     class blocking_slot
     {
     public:
-        void push(PPORT_MESSAGE msg)
-        {
-            std::unique_lock<std::mutex> lm(m_lock);
-            push(msg, lm);
-        }
-
-        bool try_push(PPORT_MESSAGE msg)
-        {
-            if (!(m_push_flag && m_lock.try_lock()))
-                return false;
-
-            std::unique_lock<std::mutex> lm(m_lock, std::adopt_lock_t());
-            if (m_push_flag)
-            {
-                push(msg, lm);
-                return true;
-            }
-            else
-                return false;
-        }
-
-        void pop(char* buffer, size_t size)
-        {
-            std::unique_lock<std::mutex> lm(m_lock);
-            m_pop_cv.wait(lm, [this]() noexcept { return m_pop_flag; });
-            PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
-            msg->u1.s1.TotalLength = std::min<size_t>(msg->u1.s1.TotalLength, size);
-            msg->u1.s1.DataLength = msg->u1.s1.TotalLength - sizeof(PORT_MESSAGE);
-            memcpy(buffer, m_buffer.data(), msg->u1.s1.TotalLength);
-            m_pop_flag = false;
-            m_push_flag = true;
-            m_push_cv.notify_one();
-        }
+        void push(PPORT_MESSAGE msg);
+        bool try_push(PPORT_MESSAGE msg);
+        void pop(char* buffer, size_t size);
+        void push_with_exception_saving(PPORT_MESSAGE msg);
 
         blocking_slot() : m_push_flag(true), m_pop_flag(false), m_buffer(msg_max_length + sizeof(PORT_MESSAGE))
         {}
@@ -1183,19 +1154,9 @@ namespace ipc
         std::mutex m_lock;
 
         std::vector<char> m_buffer;
+        std::exception_ptr m_saved_exception;
 
-        void push(PPORT_MESSAGE msg, std::unique_lock<std::mutex>& lm)
-        {
-            m_push_cv.wait(lm, [this]() noexcept { return m_push_flag; });
-            size_t size = std::min<size_t>(msg->u1.s1.TotalLength, m_buffer.size());
-            memcpy(m_buffer.data(), msg, size);
-            msg = (PPORT_MESSAGE)m_buffer.data();
-            msg->u1.s1.TotalLength = size;
-            msg->u1.s1.DataLength = size - sizeof(PORT_MESSAGE);
-            m_push_flag = false;
-            m_pop_flag = true;
-            m_pop_cv.notify_one();
-        }
+        void push(PPORT_MESSAGE msg, std::unique_lock<std::mutex>& lm);
     };
 
     struct alpc_connection

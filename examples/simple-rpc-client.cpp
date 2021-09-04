@@ -42,11 +42,11 @@ int main()
         std::setlocale(LC_ALL, "");
 
         add_args args = { 3, 4 };
-        auto result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add_with_callbacks, int32_t, ipc::tcp_client_socket_engine>(std::tuple{ host, port }, dispatch, minimal_predicate, ipc::message::remote_ptr<true>(&args));
+        auto result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add_with_callbacks, int32_t, client_engine_t>(std::tuple{ ADDRESS_ARGS }, dispatch, minimal_predicate, ipc::message::remote_ptr<true>(&args));
         std::cout << "add(" << args.a << ", " << args.b << ") = " << result << std::endl;
 
         int32_t a = 7, b = 8;
-        result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add, int32_t, ipc::tcp_client_socket_engine>(std::tuple{ host, port }, minimal_dispatch, minimal_predicate, a, b);
+        result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add, int32_t, client_engine_t>(std::tuple{ ADDRESS_ARGS }, minimal_dispatch, minimal_predicate, a, b);
         std::cout << "add(" << a << ", " << b << ") = " << result << std::endl;
 
         return 0;

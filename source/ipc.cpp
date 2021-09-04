@@ -245,7 +245,7 @@ namespace ipc
     {
         std::string msg(func_name);
         msg.append(": required space ").append(std::to_string(req_size));
-        msg.append("exceeds message length of ").append(std::to_string(total_size)).append(" bytes");
+        msg.append(" exceeds message length of ").append(std::to_string(total_size)).append(" bytes");
         throw message_too_short_exception(std::move(msg));
     }
 
@@ -479,18 +479,19 @@ namespace ipc
                 msg->MessageId = id;
                 if (!m_accept_slot.try_push(msg))
                     ntdll.NtAlpcAcceptConnectPort(&m_alpc_port, &h, 0, nullptr, nullptr, nullptr, msg, nullptr, FALSE);
-                    
+
                 break;
-            }    
+            }
             case LPC_DATAGRAM:
                 break;
             case LPC_REQUEST:
-            default:
             {
                 alpc_connection* connection = *(alpc_connection**)ntdll.AlpcGetMessageAttribute(attr, ALPC_MESSAGE_CONTEXT_ATTRIBUTE);
-                connection->m_slot.push(msg);
+                connection->m_slot.push_with_exception_saving(msg);
                 break;
             }
+            default:
+                break;
             }
         }
     }

@@ -448,18 +448,6 @@ namespace ipc
     }
 
 #ifdef _WIN32
-    typedef NTSTATUS(NTAPI* NtAlpcCreatePort_t)(PHANDLE PortHandle, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes);
-    typedef VOID(NTAPI* RtlInitUnicodeString_t)(PUNICODE_STRING DestinationString, PCWSTR SourceString);
-    typedef NTSTATUS(NTAPI* NtAlpcSendWaitReceivePort_t)(HANDLE PortHandle, ULONG Flags, PPORT_MESSAGE SendMsg, PALPC_MESSAGE_ATTRIBUTES SendMessageAttributes,
-        PPORT_MESSAGE ReceiveMessage, PSIZE_T BufferLength, PALPC_MESSAGE_ATTRIBUTES ReceiveMessageAttributes, PLARGE_INTEGER Timeout);
-    typedef NTSTATUS(NTAPI* NtAlpcAcceptConnectPort_t)(PHANDLE ConnectionPortHandle, HANDLE PortHandle, ULONG Flags, POBJECT_ATTRIBUTES ObjectAttributes,
-        PALPC_PORT_ATTRIBUTES PortAttributes, PVOID PortContext, PPORT_MESSAGE ConnectionRequest, PALPC_MESSAGE_ATTRIBUTES ConnectionMessageAttributes,
-        BOOLEAN AcceptConnection);
-    typedef NTSTATUS(NTAPI* AlpcInitializeMessageAttribute_t)(ULONG AttributeFlags, PALPC_MESSAGE_ATTRIBUTES Buffer, ULONG BufferSize, PSIZE_T RequiredBufferSize);
-    typedef PVOID(NTAPI* AlpcGetMessageAttribute_t)(PALPC_MESSAGE_ATTRIBUTES Buffer, ULONG AttributeFlag);
-    typedef NTSTATUS(NTAPI* NtAlpcConnectPort_t)(PHANDLE PortHandle, PUNICODE_STRING PortName, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes,
-        ULONG Flags, PSID RequiredServerSid, PPORT_MESSAGE ConnectionMessage, PULONG BufferLength, PALPC_MESSAGE_ATTRIBUTES OutMessageAttributes,
-        PALPC_MESSAGE_ATTRIBUTES InMessageAttributes, PLARGE_INTEGER Timeout);
 
     struct Ntdll
     {
@@ -476,8 +464,71 @@ namespace ipc
 
     extern Ntdll ntdll;
 
+    inline void blocking_slot::push(PPORT_MESSAGE msg, std::unique_lock<std::mutex>& lm)
+    {
+        if (msg->u1.s1.TotalLength > m_buffer.size())
+            throw message_integrity_exception(__FUNCTION_NAME__);
+
+        m_push_cv.wait(lm, [this]() noexcept { return m_push_flag; });
+        memcpy(m_buffer.data(), msg, msg->u1.s1.TotalLength);
+        m_push_flag = false;
+        m_pop_flag = true;
+        m_pop_cv.notify_one();
+    }
+
+    inline void blocking_slot::push(PPORT_MESSAGE msg)
+    {
+        std::unique_lock<std::mutex> lm(m_lock);
+        push(msg, lm);
+    }
+
+    inline bool blocking_slot::try_push(PPORT_MESSAGE msg)
+    {
+        if (!(m_push_flag && m_lock.try_lock()))
+            return false;
+
+        std::unique_lock<std::mutex> lm(m_lock, std::adopt_lock_t());
+        if (m_push_flag)
+        {
+            push(msg, lm);
+            return true;
+        }
+        else
+            return false;
+    }
+
+    inline void blocking_slot::pop(char* buffer, size_t size)
+    {
+        std::unique_lock<std::mutex> lm(m_lock);
+        if (m_saved_exception)
+            std::rethrow_exception(m_saved_exception);
+
+        m_pop_cv.wait(lm, [this]() noexcept { return m_pop_flag; });
+        PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
+        if (msg->u1.s1.TotalLength > size)
+            throw message_integrity_exception(__FUNCTION_NAME__);
+
+        memcpy(buffer, m_buffer.data(), msg->u1.s1.TotalLength);
+        m_pop_flag = false;
+        m_push_flag = true;
+        m_push_cv.notify_one();
+    }
+
+    inline void blocking_slot::push_with_exception_saving(PPORT_MESSAGE msg)
+    {
+        std::unique_lock<std::mutex> lm(m_lock);
+        try
+        {
+            push(msg, lm);
+        }
+        catch (std::exception& ex)
+        {
+            m_saved_exception = std::current_exception();
+        }
+    }
+
     template<class Predicate>
-    alpc_connection* alpc_server_engine::accept(const Predicate& predicate, uint16_t timeout_sec)
+    inline alpc_connection* alpc_server_engine::accept(const Predicate& predicate, uint16_t timeout_sec)
     {
         m_accept_slot.pop(m_buffer.data(), m_buffer.size());
         auto new_connection = std::make_unique<alpc_connection>(nullptr);
@@ -491,23 +542,28 @@ namespace ipc
     }
 
     template<class Predicate>
-    size_t alpc_server_data_engine::read(char* message, size_t size, const Predicate& predicate, uint16_t timeout_sec)
+    inline size_t alpc_server_data_engine::read(char* message, size_t size, const Predicate& predicate, uint16_t timeout_sec)
     {
         m_connection->m_slot.pop(m_buffer.data(), m_buffer.size());
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
-        m_id = msg->MessageId;
-        size_t len = std::min<size_t>(size, msg->u1.s1.DataLength);
-        memcpy(message, msg + 1, len);
+        if (size < msg->u1.s1.DataLength)
+            throw message_integrity_exception(__FUNCTION_NAME__);
 
-        return len;
+        m_id = msg->MessageId;
+        memcpy(message, msg + 1, msg->u1.s1.DataLength);
+
+        return msg->u1.s1.DataLength;
     }
 
     template<class Predicate>
-    void alpc_server_data_engine::write(const char* message, const Predicate& predicate, uint16_t timeout_sec)
+    inline void alpc_server_data_engine::write(const char* message, const Predicate& predicate, uint16_t timeout_sec)
     {
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         memset(msg, 0, sizeof(PORT_MESSAGE));
-        size_t size = std::min<size_t>(*(__MSG_LENGTH_TYPE__*)message + sizeof(PORT_MESSAGE), m_buffer.size());
+        size_t size = *(__MSG_LENGTH_TYPE__*)message + sizeof(PORT_MESSAGE);
+        if (size > m_buffer.size())
+            throw message_integrity_exception(__FUNCTION_NAME__);
+
         msg->u1.s1.TotalLength = size;
         msg->u1.s1.DataLength = msg->u1.s1.TotalLength - sizeof(PORT_MESSAGE);
         msg->MessageId = m_id;
@@ -519,16 +575,22 @@ namespace ipc
     }
 
     template<class Predicate>
-    void alpc_client_engine::send_request(const char* request, char* response, size_t response_size, const Predicate& predicate, uint16_t timeout_sec)
+    inline void alpc_client_engine::send_request(const char* request, char* response, size_t response_size, const Predicate& predicate, uint16_t timeout_sec)
     {
-        size_t request_size = std::min<size_t>(*(__MSG_LENGTH_TYPE__*)request + sizeof(PORT_MESSAGE), m_buffer.size());
+        size_t request_size = *(__MSG_LENGTH_TYPE__*)request + sizeof(PORT_MESSAGE);
+        if (request_size > m_buffer.size())
+            throw message_integrity_exception(__FUNCTION_NAME__);
+
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         memset(msg, 0, sizeof(PORT_MESSAGE));
         msg->u1.s1.TotalLength = request_size;
         msg->u1.s1.DataLength = msg->u1.s1.TotalLength - sizeof(PORT_MESSAGE);
         memcpy(msg + 1, request, msg->u1.s1.DataLength);
 
-        SIZE_T len = std::min<SIZE_T>(m_buffer.size(), response_size + sizeof(PORT_MESSAGE));
+        SIZE_T len = response_size + sizeof(PORT_MESSAGE);
+        if (len > m_buffer.size())
+            throw message_integrity_exception(__FUNCTION_NAME__);
+
         auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, 0, msg, nullptr, msg, &len, nullptr, nullptr);
         if (!NT_SUCCESS(status))
             fail_status<socket_read_exception>(m_ok, status, __FUNCTION_NAME__);

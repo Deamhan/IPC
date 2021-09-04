@@ -12,4 +12,22 @@ enum class simple_client_function_t
 	arg2
 };
 
-static uint16_t port = 12345;
+#if defined(_WIN32) && defined(USE_ALPC)
+	static wchar_t* port = L"\\RPC Control\\test_ipc_port";
+	typedef ipc::alpc_server_engine server_engine_t;
+	typedef ipc::alpc_client_engine client_engine_t;
+#	define ADDRESS_ARGS port
+#elif defined(__AFUNIX_H__) && defined(USE_UNIX_SOCKET)
+	static char* port = "test_ipc_port";
+	typedef ipc::unix_server_socket_engine server_engine_t;
+	typedef ipc::unix_client_socket_engine client_engine_t;
+#	define ADDRESS_ARGS port
+#else
+	static uint16_t port = 12345;
+	typedef ipc::tcp_server_socket_engine server_engine_t;
+	typedef ipc::tcp_client_socket_engine client_engine_t;
+#	ifndef SERVER_ADDRESS
+#		define SERVER_ADDRESS "localhost"
+#	endif
+#	define ADDRESS_ARGS SERVER_ADDRESS, port
+#endif
