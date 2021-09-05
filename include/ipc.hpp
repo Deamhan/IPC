@@ -1140,7 +1140,7 @@ namespace ipc
     public:
         void push(PPORT_MESSAGE msg);
         bool try_push(PPORT_MESSAGE msg);
-        void pop(char* buffer, size_t size);
+        bool pop(char* buffer, size_t size, uint32_t seconds);
         void push_with_exception_saving(PPORT_MESSAGE msg);
 
         blocking_slot() : m_push_flag(true), m_pop_flag(false), m_buffer(msg_max_length + sizeof(PORT_MESSAGE))
@@ -1197,9 +1197,12 @@ namespace ipc
         template<class Predicate>
         alpc_connection* accept(const Predicate& predicate, uint16_t timeout_sec);
 
+        ~alpc_server_engine();
+
     private:
         std::thread m_listener;
         void listen_proc();
+        std::atomic<bool> m_stop_signal;
 
         std::vector<char> m_buffer;
         char m_attr_buffer[64];

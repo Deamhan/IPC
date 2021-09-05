@@ -485,10 +485,7 @@ namespace ipc
 
     inline bool blocking_slot::try_push(PPORT_MESSAGE msg)
     {
-        if (!(m_push_flag && m_lock.try_lock()))
-            return false;
-
-        std::unique_lock<std::mutex> lm(m_lock, std::adopt_lock_t());
+        std::unique_lock<std::mutex> lm(m_lock);
         if (m_push_flag)
         {
             push(msg, lm);
@@ -498,13 +495,15 @@ namespace ipc
             return false;
     }
 
-    inline void blocking_slot::pop(char* buffer, size_t size)
+    inline bool blocking_slot::pop(char* buffer, size_t size, uint32_t seconds)
     {
         std::unique_lock<std::mutex> lm(m_lock);
         if (m_saved_exception)
             std::rethrow_exception(m_saved_exception);
 
-        m_pop_cv.wait(lm, [this]() noexcept { return m_pop_flag; });
+        if (!m_pop_cv.wait_for(lm, std::chrono::seconds(seconds), [this]() noexcept { return m_pop_flag; }))
+            return false;
+
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         if (msg->u1.s1.TotalLength > size)
             throw message_integrity_exception(__FUNCTION_NAME__);
@@ -513,6 +512,8 @@ namespace ipc
         m_pop_flag = false;
         m_push_flag = true;
         m_push_cv.notify_one();
+
+        return true;
     }
 
     inline void blocking_slot::push_with_exception_saving(PPORT_MESSAGE msg)
@@ -531,7 +532,15 @@ namespace ipc
     template<class Predicate>
     inline alpc_connection* alpc_server_engine::accept(const Predicate& predicate, uint16_t timeout_sec)
     {
-        m_accept_slot.pop(m_buffer.data(), m_buffer.size());
+        do
+        {
+            if (m_accept_slot.pop(m_buffer.data(), m_buffer.size(), timeout_sec))
+                break;
+
+            if (!predicate())
+                fail_status<user_stop_request_exception>(m_ok, __FUNCTION_NAME__);
+        } while (true);
+        
         auto new_connection = std::make_unique<alpc_connection>(nullptr);
         HANDLE new_connection_handle = nullptr;
         auto status = ntdll.NtAlpcAcceptConnectPort(&new_connection_handle, m_alpc_port, 0, nullptr, nullptr, new_connection.get(), (PPORT_MESSAGE)m_buffer.data(), nullptr, TRUE);
@@ -545,12 +554,20 @@ namespace ipc
     template<class Predicate>
     inline size_t alpc_server_data_engine::read(char* message, size_t size, const Predicate& predicate, uint16_t timeout_sec)
     {
-        m_connection->m_slot.pop(m_buffer.data(), m_buffer.size());
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         if (size < msg->u1.s1.DataLength)
             throw message_integrity_exception(__FUNCTION_NAME__);
 
-        if ((msg->u2.s2.Type & 0xfff) != LPC_REQUEST)
+        do
+        {
+            if (m_connection->m_slot.pop(m_buffer.data(), m_buffer.size(), timeout_sec))
+                break;
+
+            if (!predicate())
+                fail_status<user_stop_request_exception>(m_ok, __FUNCTION_NAME__);
+        } while (true);
+
+        if ((msg->u2.s2.Type & LPC_MESSAGE_TYPE) != LPC_REQUEST)
             fail_status<socket_read_exception>(m_ok, 0, __FUNCTION_NAME__);
 
         m_id = msg->MessageId;
@@ -560,7 +577,7 @@ namespace ipc
     }
 
     template<class Predicate>
-    inline void alpc_server_data_engine::write(const char* message, const Predicate& predicate, uint16_t timeout_sec)
+    inline void alpc_server_data_engine::write(const char* message, const Predicate& predicate, uint16_t /*timeout_sec*/)
     {
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         memset(msg, 0, sizeof(PORT_MESSAGE));

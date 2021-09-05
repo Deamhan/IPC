@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <chrono>
 #include <filesystem>
 #include <mutex>
 #include <string.h>
@@ -434,7 +435,7 @@ namespace ipc
 
     Ntdll ntdll;
 
-    alpc_server_engine::alpc_server_engine(const wchar_t* port_name) : alpc_engine(nullptr), m_buffer(msg_max_length + sizeof(PORT_MESSAGE))
+    alpc_server_engine::alpc_server_engine(const wchar_t* port_name) : alpc_engine(nullptr), m_buffer(msg_max_length + sizeof(PORT_MESSAGE)), m_stop_signal(false)
     {
         UNICODE_STRING us;
         ntdll.RtlInitUnicodeString(&us, port_name);
@@ -461,14 +462,26 @@ namespace ipc
     {
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         auto attr = (PALPC_MESSAGE_ATTRIBUTES)m_attr_buffer;
+        LARGE_INTEGER timeout;
+        timeout.QuadPart = -10000000; // 1 second (negative means relative timeout)
+
         while (true)
         {
             SIZE_T len = m_buffer.size();
-            auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, 0, nullptr, nullptr, msg, &len, attr, nullptr);
+            auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, 0, nullptr, nullptr, msg, &len, attr, &timeout);
+
             if (!NT_SUCCESS(status))
                 return;
 
-            switch (msg->u2.s2.Type & 0xFFF)
+            if (status == STATUS_TIMEOUT)
+            {
+                if (!m_stop_signal.load(std::memory_order_relaxed))
+                    continue;
+
+                break;
+            }
+
+            switch (msg->u2.s2.Type & LPC_MESSAGE_TYPE)
             {
             case LPC_CONNECTION_REQUEST:
             {
@@ -495,6 +508,12 @@ namespace ipc
                 break;
             }
         }
+    }
+
+    alpc_server_engine::~alpc_server_engine()
+    {
+        m_stop_signal = true;
+        m_listener.join();
     }
 
     alpc_client_engine::alpc_client_engine(const wchar_t* port_name) : alpc_point_to_point_connection_engine(nullptr), m_buffer(msg_max_length + sizeof(PORT_MESSAGE))
