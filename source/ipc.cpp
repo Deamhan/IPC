@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <condition_variable>
 #include <chrono>
+#include <conio.h>
 #include <filesystem>
 #include <mutex>
 #include <string.h>
@@ -431,6 +432,9 @@ namespace ipc
         AlpcGetMessageAttribute = (AlpcGetMessageAttribute_t)GetProcAddress(h_ntdll, "AlpcGetMessageAttribute");
         NtAlpcConnectPort = (NtAlpcConnectPort_t)GetProcAddress(h_ntdll, "NtAlpcConnectPort");
         RtlNtStatusToDosError = (RtlNtStatusToDosError_t)GetProcAddress(h_ntdll, "RtlNtStatusToDosError");
+        AlpcRegisterCompletionList = (AlpcRegisterCompletionList_t)GetProcAddress(h_ntdll, "AlpcRegisterCompletionList");
+        NtAlpcSetInformation = (NtAlpcSetInformation_t)GetProcAddress(h_ntdll, "NtAlpcSetInformation");
+        NtAlpcCancelMessage = (NtAlpcCancelMessage_t)GetProcAddress(h_ntdll, "NtAlpcCancelMessage");
     }
 
     Ntdll ntdll;
@@ -533,6 +537,15 @@ namespace ipc
 
         m_alpc_port = nullptr;
         m_ok = false;
+    }
+
+    DWORD CALLBACK io_job(void* context)
+    {
+        auto ctx = (io_ctx*)context;
+        SIZE_T len = ctx->resp_max_len;
+        ctx->promise.set_value(ntdll.NtAlpcSendWaitReceivePort(ctx->alpc_port, 0x18, ctx->msg, nullptr, ctx->msg, &len, nullptr, nullptr));
+
+        return 0;
     }
 #endif // _WIN32
 }

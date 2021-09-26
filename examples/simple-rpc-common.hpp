@@ -12,6 +12,8 @@ enum class simple_client_function_t
 	arg2
 };
 
+#define USE_ALPC 1
+
 #if defined(_WIN32) && defined(USE_ALPC)
 	static wchar_t* port = L"\\RPC Control\\test_ipc_port";
 	typedef ipc::alpc_server_engine server_engine_t;

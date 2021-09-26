@@ -15,6 +15,8 @@
 
 #include "../include/ipc.hpp"
 
+#include <future>
+
 #ifndef __FUNCTION_NAME__
 #ifdef __GNUG__ 
 #define __FUNCTION_NAME__   __PRETTY_FUNCTION__
@@ -459,6 +461,9 @@ namespace ipc
         AlpcGetMessageAttribute_t AlpcGetMessageAttribute;
         NtAlpcConnectPort_t NtAlpcConnectPort;
         RtlNtStatusToDosError_t RtlNtStatusToDosError;
+        AlpcRegisterCompletionList_t AlpcRegisterCompletionList;
+        NtAlpcSetInformation_t NtAlpcSetInformation;
+        NtAlpcCancelMessage_t NtAlpcCancelMessage;
 
         Ntdll() noexcept;
     };
@@ -595,6 +600,19 @@ namespace ipc
             fail_status<socket_write_exception>(m_ok, ntdll.RtlNtStatusToDosError(status), __FUNCTION_NAME__);
     }
 
+    DWORD CALLBACK io_job(void* context);
+    struct io_ctx
+    {
+        std::promise<NTSTATUS> promise;
+        HANDLE alpc_port;
+        PPORT_MESSAGE msg;
+        SIZE_T resp_max_len;
+
+        io_ctx(HANDLE _alpc_port, PPORT_MESSAGE _msg, SIZE_T _resp_max_len) : alpc_port(_alpc_port), msg(_msg), resp_max_len(_resp_max_len) {}
+    };
+
+    DWORD CALLBACK io_job(void* context);
+
     template<class Predicate>
     inline void alpc_client_engine::send_request(const char* request, char* response, size_t response_size, const Predicate& predicate, uint16_t timeout_sec)
     {
@@ -612,9 +630,30 @@ namespace ipc
         if (len > m_buffer.size())
             throw message_integrity_exception(__FUNCTION_NAME__);
 
-        auto status = ntdll.NtAlpcSendWaitReceivePort(m_alpc_port, 0, msg, nullptr, msg, &len, nullptr, nullptr);
+        io_ctx ctx(m_alpc_port, msg, len);
+        auto future = ctx.promise.get_future();
+
+        auto res = QueueUserWorkItem(io_job, &ctx, WT_EXECUTELONGFUNCTION);
+
+        NTSTATUS status = 0;
+        bool closed_by_user = false;
+        while (std::future_status::timeout == future.wait_for(std::chrono::seconds(timeout_sec)))
+        {
+            if (!predicate())
+            {
+                closed_by_user = true;
+                close();
+            }
+        }
+
+        status = future.get();
         if (!NT_SUCCESS(status))
+        {
+            if (closed_by_user)
+                fail_status<user_stop_request_exception>(m_ok, __FUNCTION_NAME__);
+
             fail_status<socket_read_exception>(m_ok, ntdll.RtlNtStatusToDosError(status), __FUNCTION_NAME__);
+        }
 
         memcpy(response, msg + 1, msg->u1.s1.DataLength);
     }
