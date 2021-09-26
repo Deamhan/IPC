@@ -11,8 +11,6 @@ struct add_args
     int32_t b;
 };
 
-static const char* host = "localhost";
-
 static bool dispatch(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg)
 {
     switch ((simple_client_function_t)id)

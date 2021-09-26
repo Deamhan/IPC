@@ -23,6 +23,10 @@
 
 #include "../include/ipc.hpp"
 
+#ifdef _WIN32
+#include <combaseapi.h>
+#endif
+
 namespace ipc
 {
     static bool init_socket_api() noexcept
@@ -127,7 +131,35 @@ namespace ipc
             unlink(m_link.c_str());
     }
 
-#endif //__AFUNIX_H__
+#endif // __AFUNIX_H__
+
+#ifdef __HYPER_V__
+#   ifdef _WIN32
+    const int HV_PROTOCOL_RAW = 1;
+    struct SOCKADDR_HV
+    {
+        ADDRESS_FAMILY Family;
+        USHORT Reserved;
+        GUID VmId;
+        GUID ServiceId;
+    };
+#   endif // _WIN32
+    hyperv_server_socket_engine::hyperv_server_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : os_server_socket_engine(INVALID_SOCKET)
+    {
+        SOCKADDR_HV serv_addr = {};
+
+        GUID vm_id = {}, service_id = {};
+        if (CLSIDFromString(vm_id_guid, &vm_id) != S_OK || CLSIDFromString(service_id_guid, &service_id) != S_OK)
+            fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to translate CLSIDs");
+
+        serv_addr.Family = AF_HYPERV;
+        serv_addr.VmId = vm_id;
+        serv_addr.ServiceId = service_id;
+
+        m_socket = ::socket(AF_HYPERV, SOCK_STREAM, HV_PROTOCOL_RAW);
+        bind_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
+    }
+#endif // __HYPER_V__
 
     void os_point_to_point_socket_engine::connect_proc(const sockaddr* address, size_t size)
     {
@@ -227,6 +259,24 @@ namespace ipc
     }
 
 #endif //__AFUNIX_H__
+
+#ifdef __HYPER_V__
+    hyperv_client_socket_engine::hyperv_client_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : client_socket_engine(INVALID_SOCKET)
+    {
+        SOCKADDR_HV serv_addr = {};
+
+        GUID vm_id = {}, service_id = {};
+        if (CLSIDFromString(vm_id_guid, &vm_id) != S_OK || CLSIDFromString(service_id_guid, &service_id) != S_OK)
+            fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to translate CLSIDs");
+
+        serv_addr.Family = AF_HYPERV;
+        serv_addr.VmId = vm_id;
+        serv_addr.ServiceId = service_id;
+
+        m_socket = ::socket(AF_HYPERV, SOCK_STREAM, HV_PROTOCOL_RAW);
+        connect_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
+    }
+#endif // __HYPER_V__
 
     [[noreturn]] void throw_message_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
     {

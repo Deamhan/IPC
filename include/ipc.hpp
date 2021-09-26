@@ -1039,18 +1039,6 @@ namespace ipc
         os_server_socket_engine(socket_t s): os_socket_engine(s) {}
     };
 
-#ifdef __AFUNIX_H__
-    class unix_server_socket_engine final : public os_server_socket_engine
-    {
-    public:
-        unix_server_socket_engine(std::string_view socket_link);
-        void close() noexcept;
-
-    private:
-        std::string m_link;
-        typedef os_socket_engine super;
-    };
-
     class client_socket_engine : public os_point_to_point_socket_engine
     {
     public:
@@ -1062,6 +1050,18 @@ namespace ipc
             write(request, predicate, timeout_sec);
             read(response, response_size, predicate, timeout_sec);
         }
+    };
+
+#ifdef __AFUNIX_H__
+    class unix_server_socket_engine final : public os_server_socket_engine
+    {
+    public:
+        unix_server_socket_engine(std::string_view socket_link);
+        void close() noexcept;
+
+    private:
+        std::string m_link;
+        typedef os_socket_engine super;
     };
 
     class unix_client_socket_engine final : public client_socket_engine
@@ -1076,6 +1076,26 @@ namespace ipc
     typedef server_socket<unix_server_socket_engine> unix_server_socket;
     typedef client_socket<unix_client_socket_engine> unix_client_socket;
 #endif //__AFUNIX_H__
+
+#ifdef __HYPER_V__
+    class hyperv_server_socket_engine final : public os_server_socket_engine
+    {
+    public:
+        hyperv_server_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid);
+
+    private:
+        typedef os_socket_engine super;
+    };
+
+    class hyperv_client_socket_engine final : public client_socket_engine
+    {
+    public:
+        hyperv_client_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid);
+    };
+
+    typedef server_socket<hyperv_server_socket_engine> hyperv_server_socket;
+    typedef client_socket<hyperv_client_socket_engine> hyperv_client_socket;
+#endif // __HYPER_V__
 
     class tcp_server_socket_engine final : public os_server_socket_engine
     {
