@@ -136,17 +136,17 @@ namespace ipc
 
 #ifdef __HYPER_V__
 #   if defined(_WIN32)
+    const int HV_PROTOCOL_RAW = 1;
+    struct SOCKADDR_HV
+    {
+        ADDRESS_FAMILY Family;
+        USHORT Reserved;
+        GUID VmId;
+        GUID ServiceId;
+    };
+
     hyperv_server_socket_engine::hyperv_server_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : os_server_socket_engine(INVALID_SOCKET)
     {
-        const int HV_PROTOCOL_RAW = 1;
-        struct SOCKADDR_HV
-        {
-            ADDRESS_FAMILY Family;
-            USHORT Reserved;
-            GUID VmId;
-            GUID ServiceId;
-        };
-
         SOCKADDR_HV serv_addr = {};
 
         GUID vm_id = {}, service_id = {};
