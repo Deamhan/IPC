@@ -16,11 +16,11 @@ enum class simple_client_function_t
 
 #if defined(__HYPER_V__)
 #   if defined (_WIN32)
-	const wchar_t* vm_id = L"{e0e16197-dd56-4a10-9195-5ee7a155a838}";
-	const wchar_t* service_id = L"{9b5307be-f1b5-4687-9e6d-b2ea6d52c562}";
+	const wchar_t* vm_id = L"{00000000-0000-0000-0000-000000000000}";      // Hyper-V is a server
+	const wchar_t* service_id = L"{00003039-facb-11e6-bd58-64006a7986d3}"; // must be registered here: "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices"
 #   elif defined(__linux__)
-    unsigned vm_id = 2;
-    unsigned service_id = 12345;
+    unsigned vm_id = 2;          // hypervisor is a server
+    unsigned service_id = 12345; // keep in sync with service_id GUID
 #   endif
 	#define port vm_id, service_id
 	typedef ipc::hyperv_server_socket_engine server_engine_t;
