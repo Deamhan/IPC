@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <condition_variable>
 #include <chrono>
-#include <conio.h>
 #include <filesystem>
 #include <mutex>
 #include <string.h>
@@ -24,7 +23,9 @@
 #include "../include/ipc.hpp"
 
 #ifdef _WIN32
-#include <combaseapi.h>
+#   include <combaseapi.h>
+#elif defined(__linux__)
+#   include <linux/vm_sockets.h>
 #endif
 
 namespace ipc
@@ -134,18 +135,18 @@ namespace ipc
 #endif // __AFUNIX_H__
 
 #ifdef __HYPER_V__
-#   ifdef _WIN32
-    const int HV_PROTOCOL_RAW = 1;
-    struct SOCKADDR_HV
-    {
-        ADDRESS_FAMILY Family;
-        USHORT Reserved;
-        GUID VmId;
-        GUID ServiceId;
-    };
-#   endif // _WIN32
+#   if defined(_WIN32)
     hyperv_server_socket_engine::hyperv_server_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : os_server_socket_engine(INVALID_SOCKET)
     {
+        const int HV_PROTOCOL_RAW = 1;
+        struct SOCKADDR_HV
+        {
+            ADDRESS_FAMILY Family;
+            USHORT Reserved;
+            GUID VmId;
+            GUID ServiceId;
+        };
+
         SOCKADDR_HV serv_addr = {};
 
         GUID vm_id = {}, service_id = {};
@@ -156,7 +157,21 @@ namespace ipc
         serv_addr.VmId = vm_id;
         serv_addr.ServiceId = service_id;
 
-        m_socket = ::socket(AF_HYPERV, SOCK_STREAM, HV_PROTOCOL_RAW);
+        int socket_family = AF_HYPERV;
+        int protocol = HV_PROTOCOL_RAW;
+#   elif defined(__linux__)
+    hyperv_server_socket_engine::hyperv_server_socket_engine(unsigned cid, unsigned port) : os_server_socket_engine(INVALID_SOCKET)
+    {
+        int socket_family = AF_VSOCK;
+        int protocol = 0;
+
+        sockaddr_vm serv_addr = {};
+        serv_addr.svm_family = AF_VSOCK;
+        serv_addr.svm_cid = cid;
+        serv_addr.svm_port = port;
+#   endif
+
+        m_socket = ::socket(socket_family, SOCK_STREAM, protocol);
         bind_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
     }
 #endif // __HYPER_V__
@@ -261,6 +276,7 @@ namespace ipc
 #endif //__AFUNIX_H__
 
 #ifdef __HYPER_V__
+#   if defined(_WIN32)
     hyperv_client_socket_engine::hyperv_client_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : client_socket_engine(INVALID_SOCKET)
     {
         SOCKADDR_HV serv_addr = {};
@@ -273,7 +289,21 @@ namespace ipc
         serv_addr.VmId = vm_id;
         serv_addr.ServiceId = service_id;
 
-        m_socket = ::socket(AF_HYPERV, SOCK_STREAM, HV_PROTOCOL_RAW);
+        int socket_family = AF_HYPERV;
+        int protocol = HV_PROTOCOL_RAW;
+#   elif defined(__linux__)
+    hyperv_client_socket_engine::hyperv_client_socket_engine(unsigned cid, unsigned port) : client_socket_engine(INVALID_SOCKET)
+    {
+        int socket_family = AF_VSOCK;
+        int protocol = 0;
+
+        sockaddr_vm serv_addr = {};
+        serv_addr.svm_family = AF_VSOCK;
+        serv_addr.svm_cid = cid;
+        serv_addr.svm_port = port;
+#   endif
+
+        m_socket = ::socket(socket_family, SOCK_STREAM, protocol);
         connect_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
     }
 #endif // __HYPER_V__

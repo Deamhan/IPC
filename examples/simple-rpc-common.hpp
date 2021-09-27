@@ -15,8 +15,13 @@ enum class simple_client_function_t
 #define USE_ALPC 1
 
 #if defined(__HYPER_V__)
+#   if defined (_WIN32)
 	const wchar_t* vm_id = L"{e0e16197-dd56-4a10-9195-5ee7a155a838}";
 	const wchar_t* service_id = L"{9b5307be-f1b5-4687-9e6d-b2ea6d52c562}";
+#   elif defined(__linux__)
+    unsigned vm_id = 2;
+    unsigned service_id = 12345;
+#   endif
 	#define port vm_id, service_id
 	typedef ipc::hyperv_server_socket_engine server_engine_t;
 	typedef ipc::hyperv_client_socket_engine client_engine_t;

@@ -81,7 +81,7 @@ namespace ipc
             if (!wait_for<true>(m_socket, predicate, timeout_sec))
                 fail_status<socket_accept_exception>(m_ok, get_socket_error(), __FUNCTION_NAME__);
 
-#ifdef __LINUX__
+#ifdef __linux__
             socket_t p2p_socket = ::accept4(m_socket, nullptr, 0, SOCK_NONBLOCK);
 #else
             socket_t p2p_socket = ::accept(m_socket, nullptr, 0);

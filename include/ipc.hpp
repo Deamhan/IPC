@@ -1081,7 +1081,11 @@ namespace ipc
     class hyperv_server_socket_engine final : public os_server_socket_engine
     {
     public:
+#   ifdef _WIN32
         hyperv_server_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid);
+#   elif defined (__linux__)
+        hyperv_server_socket_engine(unsigned cid, unsigned port);
+#   endif
 
     private:
         typedef os_socket_engine super;
@@ -1090,7 +1094,11 @@ namespace ipc
     class hyperv_client_socket_engine final : public client_socket_engine
     {
     public:
+#   ifdef _WIN32
         hyperv_client_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid);
+#   elif defined (__linux__)
+        hyperv_client_socket_engine(unsigned cid, unsigned port);
+#   endif
     };
 
     typedef server_socket<hyperv_server_socket_engine> hyperv_server_socket;
