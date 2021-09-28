@@ -5,21 +5,39 @@ set(CMAKE_CXX_STANDARD 17)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+option(ENABLE_HYPERV_SOCKETS   "enable support of Hyper-V virtual sockets" "OFF")
+option(ENABLE_MESSAGE_TAGS     "enable type tags on message serialization" "ON")
+if (WIN32)
+    option(ENABLE_UNIX_SOCKETS "enable support of Unix sockets (always enabled on Unix)" "OFF")
+endif()
+
 enable_testing()
 
+set(IPC_COMMON_SOURCES source/ipc.cpp)
+
+if (ENABLE_MESSAGE_TAGS)
+    set(COMMON_FLAGS "${COMMON_FLAGS} -D__MSG_USE_TAGS__=1")
+endif()
+
+if (ENABLE_HYPERV_SOCKETS)
+    set(COMMON_FLAGS "${COMMON_FLAGS} -D__HYPER_V__=1")
+endif()
+
+
+ 
 if (WIN32)
+    if (ENABLE_UNIX_SOCKETS)
+        set(COMMON_FLAGS "${COMMON_FLAGS} -D__AFUNIX_H__=1")
+    endif()
     set(IPC_LINK_DEPS ws2_32)
 else()
+    set(COMMON_FLAGS "${COMMON_FLAGS} -D__AFUNIX_H__=1")
     set(IPC_LINK_DEPS pthread)
     if(CMAKE_COMPILER_IS_GNUCC)
         set(IPC_LINK_DEPS ${IPC_LINK_DEPS}
                           stdc++fs)
     endif() 
 endif()
-
-set(IPC_COMMON_SOURCES source/ipc.cpp)
-
-set(COMMON_FLAGS "-D__MSG_USE_TAGS__=1 -D__AFUNIX_H__=1 -D__HYPER_V__=1")
 
 # tests
 add_executable(test-message ${IPC_COMMON_SOURCES}
