@@ -135,7 +135,12 @@ try
 catch(const std::exception& ex) 
 {
     if (!g_stop)
+    {
         std::cout << "fatal error >> " << ex.what() <<std::endl;
+        return 1;
+    }
+    else
+        std::cout << "stop signal was received" << std::endl;
 } 
     
 \endcode

@@ -42,6 +42,8 @@ static void signal_handler(int /*signum*/) noexcept
 
 auto predicate = []() { return !g_stop; };
 
+static std::mutex g_console_lock;
+
 class dispatcher
 {
 public:
@@ -76,6 +78,7 @@ public:
             }
             catch (const std::exception& ex)
             {
+                std::lock_guard<std::mutex> lg(g_console_lock);
                 std::cout << "call error >> " << ex.what() << std::endl;
             }
         }    
@@ -89,11 +92,11 @@ public:
 
 int main()
 {
+    std::setlocale(LC_ALL, "");
+    install_signal_handlers(signal_handler);
+
     try
     {
-        std::setlocale(LC_ALL, "");
-        install_signal_handlers(signal_handler);
-
         ipc::rpc_server<server_engine_t> server(port);
         server.run(dispatcher(), predicate);
     }
@@ -104,6 +107,8 @@ int main()
             std::cout << "fatal error >> " << ex.what() <<std::endl;
             return 1;
         }
+        else
+            std::cout << "stop signal was received" << std::endl;
     } 
 
     std::cout << "good bye" << std::endl;
