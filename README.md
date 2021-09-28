@@ -5,10 +5,10 @@
 IPC is distributed under the **MPL v2.0** License. See [LICENSE](http://mozilla.org/MPL/2.0/) for details.
 
 ## Library structure
-IPC library consists of 4 class types: *sockets*, *messages*, *exceptions* and *RPC*-related classes. *Socket classes* allows user to send and receive either raw data (as *raw* messages) or tuple-like type safe messages. Type safety checking can be disabled for performance reasons, maximum message size can be tuned too. *RPC*-related classes provide easy to use message based facility for remote procedure calls.
+IPC library consists of 5 class types: *sockets*, *engines*, *messages*, *exceptions* and *RPC*-related classes. *Socket classes* allows user to send and receive either raw data (as *raw* messages) or tuple-like type safe messages. Type safety checking can be disabled for performance reasons, maximum message size can be tuned too. Low level system specific routines for sockets are provided by *engines*. Library capabilities can be easily extended by implementing additional engines. *RPC*-related classes provide easy to use message based facility for remote procedure calls.
 
 ## Requirements
-Library is written using **C++ 17** standard, so compatible compiler is required. On *Windows* some library features (Unix sockets related classes) may not be available if operating system or *Windows SDK* is not new enough.
+Library is written using **C++ 17** standard, so compatible compiler is required. Some library features require new enough system and headers. On *Windows* some library features (Unix sockets related classes, *Hyper-V* sockets) may not be available if operating system or *Windows SDK* is not new enough. On *Linux* *hv_sock* kernel module must be available.
 
 ## How to build
 First of all you should run **CMake** to generate project for your build system (*CMakeLists.txt* could be found in repos root). After that you can build examples and tests by your favourite way.
