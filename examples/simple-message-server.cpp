@@ -1,6 +1,7 @@
 #include <atomic>
 #include <clocale>
 #include <iostream>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -40,6 +41,8 @@ static void signal_handler(int /*signum*/) noexcept
     clear_signal_handlers();
     g_stop = true;
 }
+
+static std::mutex g_console_lock;
 
 static void process_request(ipc::server_socket<server_engine_t>* server_socket)
 {
@@ -93,8 +96,10 @@ static void process_request(ipc::server_socket<server_engine_t>* server_socket)
                 connection_socket.send_response(out, predicate);
                 connection_socket.wait_for_shutdown(predicate);
             }
+            catch (const ipc::user_stop_request_exception&) { throw; }
             catch (const std::exception& ex)
             {
+                std::lock_guard<std::mutex> lg(g_console_lock);
                 std::cout << "request error >> " << ex.what() << std::endl;
             }
         }
@@ -102,6 +107,7 @@ static void process_request(ipc::server_socket<server_engine_t>* server_socket)
     catch (const ipc::user_stop_request_exception&) {}
     catch (const std::exception& ex)
     {
+        std::lock_guard<std::mutex> lg(g_console_lock);
         std::cout << "fatal error >> " << ex.what() << std::endl;
     }
 }
@@ -130,6 +136,8 @@ int main()
             std::cout << "fatal error >> " << ex.what() << std::endl;
             return 1;
         }
+        else
+            std::cout << "stop signal was received" << std::endl;
     } 
 
     std::cout << "good bye" << std::endl;

@@ -12,7 +12,7 @@ To start use of IPC library by message based method include <i>ipc.hpp</i> to yo
 
 \section server Server application
 
-First of all we must create listening socket, let it be an instance of ipc::unix_server_socket.
+First of all we must create listening socket, let it be an instance of ipc::tcp_server_socket (synonym of <i>server_socket<tcp_server_socket_engine></i>).
 
 \code{.cpp}
     ipc::tcp_server_socket server_socket(port);
@@ -45,43 +45,45 @@ Second part of minimal server application is accept loop (fragment includes pass
 \code{.cpp}
 try
 {
-    ipc::unix_server_socket server_socket("foo"); // has already been described
+    ipc::tcp_server_socket server_socket(port); // has already been described
     
-    auto predicate = []() { return !stop; };
-    while (!stop)
+    auto predicate = []() { return !g_stop; };
+    while (!g_stop)
     {
-        auto p2p = server_socket.accept(predicate);
+        auto connection_socket = server_socket.accept(predicate);
         
         try
         {
             ipc::in_message in;
-            p2p.read_message(in, predicate);
+            connection_socket.get_request(in, predicate);
             
             std::string req;
             in >> req;
             
             ipc::out_message out;
-            out << req << " processed";
+            out << req + " processed";
             
-            if (!p2p.write_message(out, predicate))
-                continue;
-            
-            p2p.wait_for_shutdown(predicate);   
+            connection_socket.send_response(out, predicate);  
+            connection_socket.wait_for_shutdown(predicate);   
         }
+        catch (const ipc::user_stop_request_exception&) { throw; }
         catch (std::exception& ex)
         {
             std::cout << "request error >> " << ex.what() << std::endl;
         }
     }
 }
-catch (const ipc::user_stop_request_exception&) {}
+catch (const ipc::user_stop_request_exception&)
+{
+    std::cout << "stop signal was received" << std::endl;
+}
 catch (const std::exception& ex)
 {
     std::cout << "fatal error >> " << ex.what() << std::endl;
 }
 \endcode
 
-That's all about server, lets see client application.
+That's all about server (see <i>examples/minimal-message-server.cpp</i> for more information), lets see client application.
 
 \section clien Client application.
 Client application is even more simple. We should connect to server and interract with it:
@@ -94,24 +96,27 @@ try
     const char * req_text = "request";
     out << req_text;
     
-    auto predicate = []() { return true; };
-    client_socket.write_message(out, predicate);
-    
     ipc::in_message in;
-    client_socket.read_message(in, predicate);
+    auto predicate = []() { return !g_stop; };
+    client_socket.send_request(out, in, predicate);
     
     std::string resp;
     in >> resp;
     
-    std::cout << req_text << " ->" << resp << std::endl;
+    std::cout << req_text << " -> " << resp << std::endl;
+}
+catch (const ipc::user_stop_request_exception&)
+{
+    std::cout << "stop signal was received" << std::endl;
 }
 catch(const std::exception& ex) 
 {
     std::cout << "error >> " << ex.what() << std::endl;
-}
+    return 1;
+}  
 \endcode
 
-That's all about message based communication for now. For more info you can see <i>examples/simple-message-server.cpp</i> and <i>examples/simple-message-client.cpp</i>.
+See <i>examples/minimal-message-client.cpp</i> for more information about minimal client application. That's all about message based communication for now. For more info you can see <i>examples/simple-message-server.cpp</i> and <i>examples/simple-message-client.cpp</i>.
 
 \page page2 RPC based communication
 To start use of IPC library by RPC based method include <i>rpc.hpp</i> to your source and add <i>ipc.cpp</i> to your project (for both server and client). In addition to this files I recommend you to create additional header with functions and callbacks identification enumerations.
@@ -122,9 +127,6 @@ Now we will discuss server example. It implements two methods of addition: with 
 \code{.cpp}
 try
 {
-    std::setlocale(LC_ALL, "");
-    install_signal_handlers(); // we should stop if user press Crtl-C for example 
-
     ipc::rpc_server<ipc::tcp_server_socket> server(port);
     server.run(dispatcher(), predicate);
     

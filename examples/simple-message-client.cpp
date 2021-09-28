@@ -90,12 +90,16 @@ int main()
 
         result = call_add(a, b);
         std::cout << "add(" << a << ", " << b << ") = " << result << std::endl;
-    
-        return 0;
+    }
+    catch (const ipc::user_stop_request_exception&)
+    {
+        std::cout << "stop signal was received" << std::endl;
     }
     catch(const std::exception& ex) 
     {
         std::cout << "error >> " << ex.what() << std::endl;
         return 1;
-    }         
+    }  
+    
+    return 0;
 }

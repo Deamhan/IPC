@@ -66,4 +66,14 @@ add_executable(simple-rpc-server ${IPC_COMMON_SOURCES}
                                      examples/simple-rpc-server.cpp)
 target_link_libraries(simple-rpc-server ${IPC_LINK_DEPS})
 set_target_properties(simple-rpc-server PROPERTIES COMPILE_FLAGS ${COMMON_FLAGS})
+
+add_executable(minimal-message-server ${IPC_COMMON_SOURCES}
+                                     examples/minimal-message-server.cpp)
+target_link_libraries(minimal-message-server ${IPC_LINK_DEPS})
+set_target_properties(minimal-message-server PROPERTIES COMPILE_FLAGS ${COMMON_FLAGS})
+
+add_executable(minimal-message-client ${IPC_COMMON_SOURCES}
+                                     examples/minimal-message-client.cpp)
+target_link_libraries(minimal-message-client ${IPC_LINK_DEPS})
+set_target_properties(minimal-message-client PROPERTIES COMPILE_FLAGS ${COMMON_FLAGS})
                         
