@@ -129,8 +129,6 @@ try
 {
     ipc::rpc_server<ipc::tcp_server_socket> server(port);
     server.run(dispatcher(), predicate);
-    
-    std::cout << "good bye" << std::endl;
 }
 catch(const std::exception& ex) 
 {
@@ -146,30 +144,31 @@ catch(const std::exception& ex)
 \endcode
 
 dispatcher here is class that implements three callbacks: 
--# \code{.cpp}void invoke(uint32_t, ipc::in_message&, ipc::out_message&, ipc::point_to_point_socket&) const \endcode
+-# \code{.cpp}void invoke(uint32_t, ipc::in_message&, ipc::out_message&, ipc::server_data_socket&) const \endcode
 -# \code{.cpp}void report_error(const std::exception_ptr&) const \endcode
 -# \code{.cpp}void ready() const \endcode
 
-First of it is used to invoke requested service (identifier is a first parameter), second is used to report errors and third is used to report "ready" state. Now we will see main part of server - dispatcher:
+First of it is used to invoke requested service (identifier is a first parameter), second is used to report errors and third is used to report "ready" state. First and second callbacks must be threadsafe. Now we will see main part of server - dispatcher:
 
 \code{.cpp}
 class dispatcher
 {
 public:
-    void invoke(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg, ipc::point_to_point_socket& p2p_socket) const
+    template <class Engine>
+    void invoke(uint32_t id, ipc::in_message& in_msg, ipc::out_message& out_msg, ipc::server_data_socket<Engine>& p2p_socket) const
     {
         switch ((simple_server_function_t)id)
         {
         case simple_server_function_t::add_with_callbacks:
             ipc::function_invoker<int32_t(ipc::message::remote_ptr<true>), true>()(in_msg, out_msg, [&p2p_socket, &in_msg, &out_msg](const ipc::message::remote_ptr<true>& p) mutable -> int32_t {
-                int32_t arg1 = ipc::service_invoker().call_by_channel<(uint32_t)simple_client_function_t::arg1, int32_t>(p2p_socket, in_msg, out_msg, predicate, p); // call remote callbacks
+                int32_t arg1 = ipc::service_invoker().call_by_channel<(uint32_t)simple_client_function_t::arg1, int32_t>(p2p_socket, in_msg, out_msg, predicate, p);
                 int32_t arg2 = ipc::service_invoker().call_by_channel<(uint32_t)simple_client_function_t::arg2, int32_t>(p2p_socket, in_msg, out_msg, predicate, p);
 
                 return arg1 + arg2;
                 });
             break;
         case simple_server_function_t::add:
-            ipc::function_invoker<int32_t(int32_t, int32_t), true>()(in_msg, out_msg, [](int32_t arg1, int32_t arg2) -> int32_t { return arg1 + arg2; }); // just call native function
+            ipc::function_invoker<int32_t(int32_t, int32_t), true>()(in_msg, out_msg, [](int32_t arg1, int32_t arg2) -> int32_t { return arg1 + arg2; });
             break;
         default:
             break;
@@ -186,6 +185,7 @@ public:
             }
             catch (const std::exception& ex)
             {
+                std::lock_guard<std::mutex> lg(g_console_lock);
                 std::cout << "call error >> " << ex.what() << std::endl;
             }
         }    
@@ -198,8 +198,7 @@ public:
 };
 \endcode
 
-Lets see ipc::function_invoker and ipc::service_invoker a bit closer. First of it used to call native function (service on server and callback on client): it "extracts" function arguments from incoming message, calls user function (or functor) and "packs" result to outcomming message. 
-ipc::service_invoker do another thing: it calles remote service (service on client and callback on server): it "packs" user provided data to outcomming message and "extracts" it from incomming. And, of course, both object send and receive messages. Important note: implementation drops cv and reference modifiers in template function description (for example <i>ipc::function_invoker<int32_t(ipc::message::remote_ptr<true>), true></i> has the same meaning as <i>ipc::function_invoker<int32_t(const ipc::message::remote_ptr<true>&), true></i>). Second template parameter controls termination tag inserting and should be true for service implementation on server and false for callbacks on client.
+Lets see ipc::function_invoker and ipc::service_invoker a bit closer. First of it used to call native function (service on server and callback on client): it "extracts" function arguments from incoming message, calls user function (or functor) and "packs" result to outcomming message. ipc::service_invoker does another thing: it calles remote service (service on client and callback on server): it "packs" user provided data to outcomming message and "extracts" it from incomming. And, of course, both this objects send and receive messages. Important note: implementation drops cv and reference modifiers in template function description (for example <i>ipc::function_invoker<int32_t(ipc::message::remote_ptr<true>), true></i> has the same meaning as <i>ipc::function_invoker<int32_t(const ipc::message::remote_ptr<true>&), true></i>). Second template parameter controls termination tag inserting and should be true for service implementation on server and false for callbacks on client.
 
 There is only one case where user have to work with messages directly in RPC based library use: custom types serializing and deserializing. Simple example of it you can see on previous page.
 
@@ -234,29 +233,33 @@ static bool minimal_dispatch(uint32_t id, ipc::in_message& in_msg, ipc::out_mess
     return false;
 }
 
-static auto minimal_predicate = []() { return true; }; // bad practice, just an example
-
 int main()
-{
+{   
     try
     {
-        std::setlocale(LC_ALL, "");
-
         add_args args = { 3, 4 };
-        auto result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add_with_callbacks, int32_t>(std::tuple{ host, port }, dispatch, minimal_predicate, ipc::message::remote_ptr<true>(&args));
+        auto result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add_with_callbacks, int32_t, client_engine_t>(
+            std::tuple{ ADDRESS_ARGS }, dispatch, predicate, ipc::message::remote_ptr<true>(&args));
         std::cout << "add(" << args.a << ", " << args.b << ") = " << result << std::endl;
 
         int32_t a = 7, b = 8;
-        result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add, int32_t>(std::tuple{ host, port }, minimal_dispatch, minimal_predicate, a, b);
+        result = ipc::service_invoker().call_by_address<(uint32_t)simple_server_function_t::add, int32_t, client_engine_t>(
+            std::tuple{ ADDRESS_ARGS }, minimal_dispatch, predicate, a, b);
         std::cout << "add(" << a << ", " << b << ") = " << result << std::endl;
 
         return 0;
+    }
+    catch (const ipc::user_stop_request_exception&)
+    {
+        std::cout << "stop signal was received" << std::endl;
     }
     catch (const std::exception& ex)
     {
         std::cout << "error >> " << ex.what() << std::endl;
         return 1;
     }
+    
+    return 0;
 }
 \endcode
 
