@@ -836,7 +836,7 @@ namespace ipc
          * \brief Waits for shutdown signal.
          *
          * \p predicate may be called several times to ask if the function should continue waiting for signal. If \p predicate returns false function
-         * will immediately return.
+         * will throw an ipc::user_stop_request_exception.
          *
          * \param predicate function of type bool() or similar callable object
          *
@@ -887,7 +887,7 @@ namespace ipc
          * \brief Reads raw message from channel. Use it only if you really need raw message form.
          *
          * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function
-         * will immediately return false and state of message will be invalid and must be reset.
+         * will throw an ipc::user_stop_request_exception and state of message will be invalid and must be reset.
          *
          * \param message raw message buffer (length and data, see ipc::message)
          * \param predicate function of type bool() or similar callable object
@@ -901,7 +901,7 @@ namespace ipc
          * \brief Reads message from channel.
          *
          * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function
-         * will immediately return false and state of message will be invalid and must be reset.
+         * will throw an ipc::user_stop_request_exception and state of message will be invalid and must be reset.
          *
          * \param message message object
          * \param predicate function of type bool() or similar callable object
@@ -915,7 +915,7 @@ namespace ipc
           * \brief Writes raw message to channel. Use it only if you really need raw message form.
           *
           * \p predicate may be called several times to ask if the function should continue trying to write data. If \p predicate returns false function
-          * will immediately return false and data will not be written.
+          * will throw an ipc::user_stop_request_exception and data will not be written.
           *
           * \warning because of non blocking writing data may not be written immediatelly after function exit, so it is recommended to wait for some kind
           * of answer from another side and only after that destroy \p message.
@@ -932,7 +932,7 @@ namespace ipc
           * \brief Writes message to channel.
           *
           * \p predicate may be called several times to ask if the function should continue trying to write data. If \p predicate returns false function
-          * will immediately return false and data will not be written.
+          * will throw an ipc::user_stop_request_exception and data will not be written.
           *
           * \warning because of non blocking writing data may not be written immediatelly after function exit, so it is recommended to wait for some kind
           * of answer from another side and only after that destroy \p message.
@@ -965,7 +965,7 @@ namespace ipc
          * \brief Sends and receives raw messages from channel. Use it only if you really need raw message form.
          *          
          * \p predicate may be called several times to ask if the function should continue waiting for data of finishing writing. 
-         * If \p predicate returns false function will immediately return false and state of message will be invalid and must be reset.
+         * If \p predicate returns false function throw and state of message will be invalid and must be reset.
          *
          * \param request raw message buffer (length and data, see ipc::message) that contains request data
          * \param response raw message buffer that contains response data
@@ -980,7 +980,7 @@ namespace ipc
          * \brief Sends and receives messages from channel.
          *          
          * \p predicate may be called several times to ask if the function should continue waiting for data of finishing writing. 
-         * If \p predicate returns false function will immediately return false and state of message will be invalid and must be reset.
+         * If \p predicate returns false function will throw an ipc::user_stop_request_exception and state of message will be invalid and must be reset.
          *
          * \param request message that contains request data
          * \param response message that contains response data
@@ -1020,37 +1020,80 @@ namespace ipc
         server_socket(Args&&... args) noexcept : socket<Engine>(std::forward<Args>(args)...) {}
     };
 
+    /**
+     * \brief Base class for socket based engines
+     */
     class os_socket_engine
     {
     public:
-        bool& is_ok() noexcept { return m_ok; }
-        void close() noexcept;
+        bool& is_ok() noexcept { return m_ok; } ///< read/write status access method
+        void close() noexcept; ///< closes socket
 
     protected:
-        bool m_ok;
-        socket_t m_socket;
+        bool m_ok; ///< socket status member
+        socket_t m_socket; ///< socket handle
 
         os_socket_engine(socket_t s);
     };
 
+    /**
+     * \brief Engine that implements bidirectional data communication channel (active socket)
+     */
     class os_point_to_point_socket_engine : public os_socket_engine
     {
     public:
+        /**
+         * \brief Reads data from channel.
+         *
+         * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function
+         * will throw an ipc::user_stop_request_exception.
+         *
+         * \param message raw message buffer
+         * \param size raw message buffer size
+         * \param predicate function of type bool() or similar callable object
+         * \param timeout_sec timeout in seconds (after each timeout \p predicate will be called)
+         *
+         * \return read bytes count.
+         */
         template<class Predicate>
         size_t read(char* message, size_t size, const Predicate& predicate, uint16_t timeout_sec);
 
+        /**
+         * \brief Writes data from channel.
+         *
+         * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function
+         * will throw an ipc::user_stop_request_exception.
+         *
+         * \param message raw message buffer (size and data, see ipc::message)
+         * \param predicate function of type bool() or similar callable object
+         * \param timeout_sec timeout in seconds (after each timeout \p predicate will be called)
+         *
+         * \return wring status.
+         */
         template<class Predicate>
         bool write(const char* message, const Predicate& predicate, uint16_t timeout_sec);
 
+        /**
+         * \brief Sends shutdown signal.
+         *
+         * \sa #wait_for_shutdown.
+         */
         void shutdown();
 
+        /**
+         * \brief Waits for shutdown signal.
+         *
+         * \p predicate may be called several times to ask if the function should continue waiting for signal. If \p predicate returns false function
+         * will throw an ipc::user_stop_request_exception.
+         *
+         * \param predicate function of type bool() or similar callable object
+         *
+         * \sa #shutdown.
+         */
         template<class Predicate>
         void wait_for_shutdown(const Predicate& predicate, uint16_t timeout_sec);
 
         os_point_to_point_socket_engine(socket_t s) : os_socket_engine(s) {}
-
-    protected:
-        void connect_proc(const sockaddr* address, size_t size);
     };
 
     class os_server_socket_engine : public os_socket_engine
@@ -1079,6 +1122,9 @@ namespace ipc
             write(request, predicate, timeout_sec);
             read(response, response_size, predicate, timeout_sec);
         }
+    
+    protected:
+        void connect_proc(const sockaddr* address, size_t size);
     };
 
 #ifdef __AFUNIX_H__
@@ -1148,7 +1194,7 @@ namespace ipc
 
     private:
         void connect_proc(uint32_t address, uint16_t port);
-        typedef os_point_to_point_socket_engine super;
+        typedef client_socket_engine super;
     };
 
     typedef server_socket<tcp_server_socket_engine> tcp_server_socket;

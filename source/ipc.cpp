@@ -176,7 +176,7 @@ namespace ipc
     }
 #endif // __HYPER_V__
 
-    void os_point_to_point_socket_engine::connect_proc(const sockaddr* address, size_t size)
+    void client_socket_engine::connect_proc(const sockaddr* address, size_t size)
     {
         if (INVALID_SOCKET == m_socket)
             fail_status<active_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to allocate socket");
