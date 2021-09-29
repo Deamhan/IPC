@@ -206,7 +206,7 @@ namespace ipc
             ok = (read == size);
         }
 
-        update_status<message_integrity_exception>(this->m_engine.is_ok(), ok, __FUNCTION_NAME__);
+        update_status<validation_error>(this->m_engine.is_ok(), ok, __FUNCTION_NAME__);
     }
     
     template <class Engine> template<typename Predicate>
@@ -473,7 +473,7 @@ namespace ipc
     inline void blocking_slot::push(PPORT_MESSAGE msg, std::unique_lock<std::mutex>& lm)
     {
         if (msg->u1.s1.TotalLength > m_buffer.size())
-            throw message_integrity_exception(__FUNCTION_NAME__);
+            throw container_overflow_exception(__FUNCTION_NAME__);
 
         m_push_cv.wait(lm, [this]() noexcept { return m_push_flag; });
         memcpy(m_buffer.data(), msg, msg->u1.s1.TotalLength);
@@ -511,7 +511,7 @@ namespace ipc
 
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         if (msg->u1.s1.TotalLength > size)
-            throw message_integrity_exception(__FUNCTION_NAME__);
+            throw container_overflow_exception(__FUNCTION_NAME__);
 
         memcpy(buffer, m_buffer.data(), msg->u1.s1.TotalLength);
         m_pop_flag = false;
@@ -561,7 +561,7 @@ namespace ipc
     {
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         if (size < msg->u1.s1.DataLength)
-            throw message_integrity_exception(__FUNCTION_NAME__);
+            throw container_overflow_exception(__FUNCTION_NAME__);
 
         do
         {
@@ -588,7 +588,7 @@ namespace ipc
         memset(msg, 0, sizeof(PORT_MESSAGE));
         size_t size = *(__MSG_LENGTH_TYPE__*)message + sizeof(PORT_MESSAGE);
         if (size > m_buffer.size())
-            throw message_integrity_exception(__FUNCTION_NAME__);
+            throw container_overflow_exception(__FUNCTION_NAME__);
 
         msg->u1.s1.TotalLength = size;
         msg->u1.s1.DataLength = msg->u1.s1.TotalLength - sizeof(PORT_MESSAGE);
@@ -618,7 +618,7 @@ namespace ipc
     {
         size_t request_size = *(__MSG_LENGTH_TYPE__*)request + sizeof(PORT_MESSAGE);
         if (request_size > m_buffer.size())
-            throw message_integrity_exception(__FUNCTION_NAME__);
+            throw container_overflow_exception(__FUNCTION_NAME__);
 
         PPORT_MESSAGE msg = (PPORT_MESSAGE)m_buffer.data();
         memset(msg, 0, sizeof(PORT_MESSAGE));
@@ -628,7 +628,7 @@ namespace ipc
 
         SIZE_T len = response_size + sizeof(PORT_MESSAGE);
         if (len > m_buffer.size())
-            throw message_integrity_exception(__FUNCTION_NAME__);
+            throw container_overflow_exception(__FUNCTION_NAME__);
 
         io_ctx ctx(m_alpc_port, msg, len);
         auto future = ctx.promise.get_future();

@@ -102,7 +102,7 @@ namespace ipc
     class system_error : public std::system_error
     {
     protected:  
-        /**
+       /**
         * \brief Exception constructor
         * 
         * \param code exception code (errno or last error on Windows)
@@ -117,7 +117,7 @@ namespace ipc
      */
     class logic_error : public std::logic_error
     {
-    protected:  
+    protected:
         /**
         * \brief Exception constructor
         * 
@@ -128,12 +128,27 @@ namespace ipc
     };
     
     /**
+     * \brief Received data validation error
+     */
+    class validation_error : public logic_error
+    {
+    public:
+       /**
+        * \brief Exception constructor
+        * 
+        * \param message exception message
+        */
+        template <class T>
+        validation_error(T&& message) : logic_error(std::forward<T>(message)) {}
+    };
+    
+    /**
      * \brief Generic socket (passive or active) exception class.
      */
     class socket_exception : public system_error
     {
-    protected:  
-        /**
+    protected:
+       /**
         * \brief Exception constructor
         * 
         * \param code exception code (errno or last error on Windows)
@@ -149,7 +164,7 @@ namespace ipc
     class passive_socket_exception : public socket_exception
     {
     protected:
-        /**
+       /**
         * \brief Exception constructor
         *
         * \param code exception code (errno or last error on Windows)
@@ -241,6 +256,21 @@ namespace ipc
         template <class T>
         explicit container_overflow_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
+    
+    /**
+     * \brief  Exception that will be thrown if hostname translation result is not IP address.
+     */
+    class bad_hostname_exception : public logic_error
+    {
+    public:
+        /**
+         * \brief Exception constructor
+         *
+         * \param message exception message
+         */
+        template <class T>
+        explicit bad_hostname_exception(T&& message) : logic_error(std::forward<T>(message)) {}
+    };
 
     /**
      * \brief Generic message object format mismatch exception.
@@ -307,21 +337,6 @@ namespace ipc
     };
 
     /**
-     * \brief  Exception that will be thrown if hostname translation result is not IP address.
-     */
-    class bad_hostname_exception : public logic_error
-    {
-    public:
-        /**
-         * \brief Exception constructor
-         *
-         * \param message exception message
-         */
-        template <class T>
-        explicit bad_hostname_exception(T&& message) : logic_error(std::forward<T>(message)) {}
-    };
-
-    /**
      * \brief Exception that will be thrown if message cannot hold all user data according max size limitation.
      *
      * To avoid exception condition you should either increase __MSG_MAX_LENGTH__ or reduce data amount per message. 
@@ -336,18 +351,6 @@ namespace ipc
          */
         template <class T>
         explicit message_overflow_exception(T&& message) : logic_error(std::forward<T>(message)) {}
-    };
-
-    class message_integrity_exception : public logic_error
-    {
-    public:
-        /**
-         * \brief exception constructor
-         *
-         * \param message exception message
-         */
-        template <class T>
-        explicit message_integrity_exception(T&& message) : logic_error(std::forward<T>(message)) {}
     };
 
     /**
@@ -448,6 +451,8 @@ namespace ipc
 
     /**
      * \brief Base class for all sockets hierarchy.
+     *
+     * \tparam Engine Default or custom low level API provider
      */
     template <class Engine>
     class socket
@@ -462,7 +467,7 @@ namespace ipc
         ~socket() { close(); }
 
     protected:
-        Engine m_engine;
+        Engine m_engine; ///< all low level work is done by engine
         
         /**
          * \brief Socket handle based constructor
@@ -821,10 +826,7 @@ namespace ipc
     class server_socket;
 
     /**
-     * \brief Bidirectional data channel.
-     *
-     * This class allows pair of applications to send and receive data between each other. Instance cannot be created directly:
-     * it can be obtained as result of server_socket::accept (received instance will represent server side of data channel).
+     * \brief Helper class for implementing bidirectional data sockets.
      */
     template <class Engine>
     class point_to_point_socket : public socket<Engine>
@@ -844,10 +846,10 @@ namespace ipc
         void wait_for_shutdown(const Predicate& predicate) { this->m_engine.wait_for_shutdown(predicate, 1); }
 
         /**
-          * \brief Sends shutdown signal.
-          *
-          * \sa #wait_for_shutdown.
-          */
+         * \brief Sends shutdown signal.
+         *
+         * \sa #wait_for_shutdown.
+         */
         void shutdown() noexcept { this->m_engine.shutdown(); };
 
         ~point_to_point_socket() { shutdown(); }
@@ -869,7 +871,10 @@ namespace ipc
     };
 
     /**
-     * \brief Active (data) socket
+     * \brief Active (data) server socket
+     *
+     * This class allows server to communicate with particular client. Instance cannot be created directly:
+     * it can be obtained as result of server_socket::accept (received instance will represent server side of data channel).
      */
     template <class Engine>
     class server_data_socket : public point_to_point_socket<Engine>
@@ -884,7 +889,7 @@ namespace ipc
          * \p predicate may be called several times to ask if the function should continue waiting for data. If \p predicate returns false function
          * will immediately return false and state of message will be invalid and must be reset.
          *
-         * \param message raw message buffer (length and data, see ipc::Message)
+         * \param message raw message buffer (length and data, see ipc::message)
          * \param predicate function of type bool() or similar callable object
          *
          * \return true if message has been read successfully.
@@ -956,9 +961,33 @@ namespace ipc
         template <class... Args>
         explicit client_socket(Args&&... args) : point_to_point_socket<Engine>(std::forward<Args>(args)...) {}
 
+        /**
+         * \brief Sends and receives raw messages from channel. Use it only if you really need raw message form.
+         *          
+         * \p predicate may be called several times to ask if the function should continue waiting for data of finishing writing. 
+         * If \p predicate returns false function will immediately return false and state of message will be invalid and must be reset.
+         *
+         * \param request raw message buffer (length and data, see ipc::message) that contains request data
+         * \param response raw message buffer that contains response data
+         * \param predicate function of type bool() or similar callable object 
+         *
+         * \return true if message has been read successfully.
+         */
         template<class Predicate>
         void send_request(const char* request, std::vector<char>& response, const Predicate& predicate);
 
+        /**
+         * \brief Sends and receives messages from channel.
+         *          
+         * \p predicate may be called several times to ask if the function should continue waiting for data of finishing writing. 
+         * If \p predicate returns false function will immediately return false and state of message will be invalid and must be reset.
+         *
+         * \param request message that contains request data
+         * \param response message that contains response data
+         * \param predicate function of type bool() or similar callable object 
+         *
+         * \return true if message has been read successfully.
+         */
         template<class Predicate>
         void send_request(out_message& request, in_message& response, const Predicate& predicate);
     };

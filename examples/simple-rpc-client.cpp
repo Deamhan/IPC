@@ -1,6 +1,8 @@
 #include <clocale>
 #include <iostream>
 
+#include <signal.h>
+
 #include "../include/rpc.hpp"
 
 #include "simple-rpc-common.hpp"
