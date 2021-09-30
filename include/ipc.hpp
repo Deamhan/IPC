@@ -965,7 +965,7 @@ namespace ipc
          * \brief Sends and receives raw messages from channel. Use it only if you really need raw message form.
          *          
          * \p predicate may be called several times to ask if the function should continue waiting for data of finishing writing. 
-         * If \p predicate returns false function throw and state of message will be invalid and must be reset.
+         * If \p predicate returns false function will throw an ipc::user_stop_request_exception and state of message will be invalid and must be reset.
          *
          * \param request raw message buffer (length and data, see ipc::message) that contains request data
          * \param response raw message buffer that contains response data
@@ -1017,7 +1017,7 @@ namespace ipc
         * Creates server socket instance
         */
         template <class... Args>
-        server_socket(Args&&... args) noexcept : socket<Engine>(std::forward<Args>(args)...) {}
+        server_socket(Args&&... args) : socket<Engine>(std::forward<Args>(args)...) {}
     };
 
     /**
@@ -1096,26 +1096,56 @@ namespace ipc
         os_point_to_point_socket_engine(socket_t s) : os_socket_engine(s) {}
     };
 
+    /**
+     * \brief Engine that implements generic passive socket (listener). It is helper class only.
+     */
     class os_server_socket_engine : public os_socket_engine
     {
     public:
+        /**
+         * \brief Waits for incoming connections. 
+         *          
+         * \p predicate may be called several times to ask if the function should continue waiting for incoming connections. If \p predicate returns false function 
+         * will throw ipc::user_stop_request_exception. 
+         *
+         * \param predicate function of type bool() or similar callable object 
+         * \return data exchange socket handle
+         */
         template<class Predicate>
         socket_t accept(const Predicate& predicate, uint16_t timeout_sec);
 
+        /**
+         * \brief Related engine for server_data_socket.
+         */
         typedef os_point_to_point_socket_engine point_to_point_engine_t;
 
     protected:
         std::mutex m_lock; ///< mutex for accept synchronization
 
-        void bind_proc(const sockaddr* address, size_t size);
+        void bind_proc(const sockaddr* address, size_t size); ///< helper routine for socket binding
         os_server_socket_engine(socket_t s): os_socket_engine(s) {}
     };
 
+    /**
+     * \brief Engine that implements client bidirectional data communication channel.
+     */
     class client_socket_engine : public os_point_to_point_socket_engine
     {
     public:
         client_socket_engine(socket_t s) : os_point_to_point_socket_engine(s) {}
 
+        /**
+         * \brief Sends and receives data from channel.
+         *          
+         * \p predicate may be called several times to ask if the function should continue waiting for data of finishing writing. 
+         * If \p predicate returns false function will throw an ipc::user_stop_request_exception.
+         *
+         * \param request raw message buffer (length and data, see ipc::message) that contains request data
+         * \param response raw message buffer that contains response data
+         * \param predicate function of type bool() or similar callable object 
+         *
+         * \return true if message has been read successfully.
+         */
         template<class Predicate>
         void send_request(const char* request, char* response, size_t response_size, const Predicate& predicate, uint16_t timeout_sec)
         {
@@ -1124,13 +1154,24 @@ namespace ipc
         }
     
     protected:
-        void connect_proc(const sockaddr* address, size_t size);
-    };
+        void connect_proc(const sockaddr* address, size_t size); ///< helper routine for server connection
+    }; 
 
 #ifdef __AFUNIX_H__
+    /**
+     * \brief Engine that implements UNIX passive socket (listener). 
+     *
+     * UNIX socket used for local interprocess communication, filesystem node is used like a port.
+     * This types of sockets are available on windows since build 17063. It is used by WSL.
+     */
     class unix_server_socket_engine final : public os_server_socket_engine
     {
     public:
+        /**
+         * \brief UNIX socket engine constructor. 
+         *
+         * \param filesystem path to bind socket on it
+         */
         unix_server_socket_engine(std::string_view socket_link);
         void close() noexcept;
 
@@ -1139,57 +1180,113 @@ namespace ipc
         typedef os_socket_engine super;
     };
 
+    /**
+     * \brief Engine that implements UNIX client socket.
+     */
     class unix_client_socket_engine final : public client_socket_engine
     {
     public:
+        /**
+         * \brief UNIX socket engine constructor. 
+         *
+         * \param filesystem path to bind socket on it
+         */
         unix_client_socket_engine(std::string_view socket_link);
 
     private:
-        std::string m_link;
+        std::string m_link; ///< path to file that used by UNIX server socket
     };
 
     typedef server_socket<unix_server_socket_engine> unix_server_socket;
     typedef client_socket<unix_client_socket_engine> unix_client_socket;
 #endif //__AFUNIX_H__
 
-#ifdef __HYPER_V__
-    class hyperv_server_socket_engine final : public os_server_socket_engine
+#ifdef __VSOCK__
+    /**
+     * \brief Engine that implements virtual machines <-> hypervisor passive socket (listener). 
+     *
+     * Hyper-V/WSL2 AF_HYPERV case is used on Windows (only this cases are tested)
+     */
+    class virtual_server_socket_engine final : public os_server_socket_engine
     {
     public:
 #   ifdef _WIN32
-        hyperv_server_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid);
+        /**
+         * \brief Virtual socket engine constructor. 
+         *
+         * \param vm_id - virtual machine ID (GUID on Windows (Hyper-V), unsigned int on Linux)
+         * \param service_id - service ID (GUID on Windows (Hyper-V), unsigned int on Linux), used like TCP/UDP port
+         */
+        virtual_server_socket_engine(const wchar_t* vm_id, const wchar_t* service_id);
 #   elif defined (__linux__)
-        hyperv_server_socket_engine(unsigned cid, unsigned port);
+        virtual_server_socket_engine(unsigned vm_id, unsigned service_id);
 #   endif
 
     private:
-        typedef os_socket_engine super;
+        typedef os_socket_engine super; ///< parent class
     };
 
-    class hyperv_client_socket_engine final : public client_socket_engine
+    /**
+     * \brief Engine that implements virtual machines <-> hypervisor client socket. 
+     *
+     * Hyper-V/WSL2 AF_HYPERV case is used on Windows (only this cases are tested)
+     */
+    class virtual_client_socket_engine final : public client_socket_engine
     {
     public:
 #   ifdef _WIN32
-        hyperv_client_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid);
+        /**
+         * \brief Virtual socket engine constructor. 
+         *
+         * \param vm_id - virtual machine ID (GUID on Windows (Hyper-V), unsigned int on Linux)
+         * \param service_id - service ID (GUID on Windows (Hyper-V), unsigned int on Linux), used like TCP/UDP port
+         */
+        virtual_client_socket_engine(const wchar_t* vm_id, const wchar_t* service_id);
 #   elif defined (__linux__)
-        hyperv_client_socket_engine(unsigned cid, unsigned port);
+        virtual_client_socket_engine(unsigned vm_id, unsigned service_id);
 #   endif
     };
 
-    typedef server_socket<hyperv_server_socket_engine> hyperv_server_socket;
-    typedef client_socket<hyperv_client_socket_engine> hyperv_client_socket;
-#endif // __HYPER_V__
+    typedef server_socket<virtual_server_socket_engine> virtual_server_socket;
+    typedef client_socket<virtual_client_socket_engine> virtual_client_socket;
+#endif // __VSOCK__
 
+    /**
+     * \brief Engine that implements TCP/IP passive socket (listener). 
+     *
+     * Most cross platform engine, must work on any popular platform.
+     */
     class tcp_server_socket_engine final : public os_server_socket_engine
     {
     public:
+        /**
+         * \brief TCP/IP socket engine constructor. 
+         *
+         * \param port - TCP port to bind
+         */
         tcp_server_socket_engine(uint16_t port);
     };
 
+    /**
+     * \brief Engine that implements TCP/IP active (data) socket. 
+     */
     class tcp_client_socket_engine final : public client_socket_engine
     {
     public:
+        /**
+         * \brief TCP/IP socket engine constructor. 
+         *
+         * \param address - IPv4 address to connect
+         * \param port - TCP port to connect
+         */
         tcp_client_socket_engine(uint32_t address, uint16_t port);
+        
+        /**
+         * \brief TCP/IP socket engine constructor. 
+         *
+         * \param name - symbolic name to connect
+         * \param port - TCP port to connect
+         */
         tcp_client_socket_engine(std::string_view name, uint16_t port);
 
     private:
@@ -1200,7 +1297,7 @@ namespace ipc
     typedef server_socket<tcp_server_socket_engine> tcp_server_socket;
     typedef client_socket<tcp_client_socket_engine> tcp_client_socket;
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(USE_ALPC)
     class alpc_engine
     {
     public:
@@ -1312,7 +1409,7 @@ namespace ipc
 
         blocking_slot m_accept_slot;
     };
-#endif // _WIN32
+#endif // _WIN32 && USE_ALPC
     
 }
 

@@ -115,6 +115,19 @@ namespace ipc
     }
 
 #ifdef __AFUNIX_H__
+#   ifdef _WIN32
+    static inline bool is_socket_exists(const char* s) noexcept
+    {
+        return (GetFileAttributesA(s) != INVALID_FILE_ATTRIBUTES);
+    }
+#   else
+    static inline bool is_socket_exists(const char* s) noexcept
+    {
+        std::error_code ec;
+        return std::filesystem::exists(s, ec);
+    }
+#   endif
+
     unix_server_socket_engine::unix_server_socket_engine(std::string_view socket_link) : os_server_socket_engine(INVALID_SOCKET), m_link(socket_link)
     {
         sockaddr_un serv_addr;
@@ -132,9 +145,29 @@ namespace ipc
             unlink(m_link.c_str());
     }
 
+    unix_client_socket_engine::unix_client_socket_engine(std::string_view path) : client_socket_engine(INVALID_SOCKET)
+    {
+        if (!is_socket_exists(path.data()))
+        {
+#   ifdef _WIN32
+            int ecode = ERROR_FILE_NOT_FOUND;
+#   else
+            int ecode = ENOENT;
+#   endif
+            fail_status<active_socket_prepare_exception>(m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
+        }
+
+        sockaddr_un serv_addr = {};
+        serv_addr.sun_family = AF_UNIX;
+        strncpy(serv_addr.sun_path, path.data(), std::min<size_t>(sizeof(serv_addr.sun_path), path.size()));
+
+        m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        connect_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + path.size());
+    }
+
 #endif // __AFUNIX_H__
 
-#ifdef __HYPER_V__
+#ifdef __VSOCK__
 #   if defined(_WIN32)
     const int HV_PROTOCOL_RAW = 1;
     struct SOCKADDR_HV
@@ -145,7 +178,7 @@ namespace ipc
         GUID ServiceId;
     };
 
-    hyperv_server_socket_engine::hyperv_server_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : os_server_socket_engine(INVALID_SOCKET)
+    virtual_server_socket_engine::virtual_server_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : os_server_socket_engine(INVALID_SOCKET)
     {
         SOCKADDR_HV serv_addr = {};
 
@@ -160,7 +193,7 @@ namespace ipc
         int socket_family = AF_HYPERV;
         int protocol = HV_PROTOCOL_RAW;
 #   elif defined(__linux__)
-    hyperv_server_socket_engine::hyperv_server_socket_engine(unsigned cid, unsigned port) : os_server_socket_engine(INVALID_SOCKET)
+    virtual_server_socket_engine::virtual_server_socket_engine(unsigned cid, unsigned port) : os_server_socket_engine(INVALID_SOCKET)
     {
         int socket_family = AF_VSOCK;
         int protocol = 0;
@@ -174,7 +207,38 @@ namespace ipc
         m_socket = ::socket(socket_family, SOCK_STREAM, protocol);
         bind_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
     }
-#endif // __HYPER_V__
+
+#   if defined(_WIN32)
+    virtual_client_socket_engine::virtual_client_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : client_socket_engine(INVALID_SOCKET)
+    {
+        SOCKADDR_HV serv_addr = {};
+
+        GUID vm_id = {}, service_id = {};
+        if (CLSIDFromString(vm_id_guid, &vm_id) != S_OK || CLSIDFromString(service_id_guid, &service_id) != S_OK)
+            fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to translate CLSIDs");
+
+        serv_addr.Family = AF_HYPERV;
+        serv_addr.VmId = vm_id;
+        serv_addr.ServiceId = service_id;
+
+        int socket_family = AF_HYPERV;
+        int protocol = HV_PROTOCOL_RAW;
+#   elif defined(__linux__)
+    virtual_client_socket_engine::virtual_client_socket_engine(unsigned cid, unsigned port) : client_socket_engine(INVALID_SOCKET)
+    {
+        int socket_family = AF_VSOCK;
+        int protocol = 0;
+
+        sockaddr_vm serv_addr = {};
+        serv_addr.svm_family = AF_VSOCK;
+        serv_addr.svm_cid = cid;
+        serv_addr.svm_port = port;
+#   endif
+
+        m_socket = ::socket(socket_family, SOCK_STREAM, protocol);
+        connect_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
+    }
+#endif // __VSOCK__
 
     void client_socket_engine::connect_proc(const sockaddr* address, size_t size)
     {
@@ -238,75 +302,6 @@ namespace ipc
 
         connect_proc(ntohl(*(u_long*)info->h_addr_list[0]), port);
     }
-
-#ifdef _WIN32
-    static inline bool is_socket_exists(const char* s) noexcept
-    {
-        return (GetFileAttributesA(s) != INVALID_FILE_ATTRIBUTES);
-    }
-#else
-    static inline bool is_socket_exists(const char* s) noexcept
-    {
-        std::error_code ec;
-        return std::filesystem::exists(s, ec);
-    }
-#endif
-
-#ifdef __AFUNIX_H__
-    unix_client_socket_engine::unix_client_socket_engine(std::string_view path) : client_socket_engine(INVALID_SOCKET)
-    {
-        if (!is_socket_exists(path.data()))
-        {
-#ifdef _WIN32
-            int ecode = ERROR_FILE_NOT_FOUND;
-#else
-            int ecode = ENOENT;
-#endif
-            fail_status<active_socket_prepare_exception>(m_ok, ecode, std::string(__FUNCTION_NAME__) + ": target does not exist");
-        }
-
-        sockaddr_un serv_addr = {};
-        serv_addr.sun_family = AF_UNIX;
-        strncpy(serv_addr.sun_path, path.data(), std::min<size_t>(sizeof(serv_addr.sun_path), path.size()));
-
-        m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
-        connect_proc((const sockaddr*)&serv_addr, offsetof(sockaddr_un, sun_path) + path.size());
-    }
-
-#endif //__AFUNIX_H__
-
-#ifdef __HYPER_V__
-#   if defined(_WIN32)
-    hyperv_client_socket_engine::hyperv_client_socket_engine(const wchar_t* vm_id_guid, const wchar_t* service_id_guid) : client_socket_engine(INVALID_SOCKET)
-    {
-        SOCKADDR_HV serv_addr = {};
-
-        GUID vm_id = {}, service_id = {};
-        if (CLSIDFromString(vm_id_guid, &vm_id) != S_OK || CLSIDFromString(service_id_guid, &service_id) != S_OK)
-            fail_status<passive_socket_prepare_exception>(m_ok, get_socket_error(), std::string(__FUNCTION_NAME__) + ": unable to translate CLSIDs");
-
-        serv_addr.Family = AF_HYPERV;
-        serv_addr.VmId = vm_id;
-        serv_addr.ServiceId = service_id;
-
-        int socket_family = AF_HYPERV;
-        int protocol = HV_PROTOCOL_RAW;
-#   elif defined(__linux__)
-    hyperv_client_socket_engine::hyperv_client_socket_engine(unsigned cid, unsigned port) : client_socket_engine(INVALID_SOCKET)
-    {
-        int socket_family = AF_VSOCK;
-        int protocol = 0;
-
-        sockaddr_vm serv_addr = {};
-        serv_addr.svm_family = AF_VSOCK;
-        serv_addr.svm_cid = cid;
-        serv_addr.svm_port = port;
-#   endif
-
-        m_socket = ::socket(socket_family, SOCK_STREAM, protocol);
-        connect_proc((const sockaddr*)&serv_addr, sizeof(serv_addr));
-    }
-#endif // __HYPER_V__
 
     [[noreturn]] void throw_message_overflow_exception(const char* func_name, size_t req_size, size_t total_size)
     {

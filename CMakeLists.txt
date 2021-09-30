@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-option(ENABLE_HYPERV_SOCKETS   "enable support of Hyper-V virtual sockets" "OFF")
+option(ENABLE_VIRTUAL_SOCKETS  "enable support of Hyper-V virtual sockets" "OFF")
 option(ENABLE_MESSAGE_TAGS     "enable type tags on message serialization" "ON")
 if (WIN32)
     option(ENABLE_UNIX_SOCKETS "enable support of Unix sockets (always enabled on Unix)" "OFF")
@@ -19,8 +19,8 @@ if (ENABLE_MESSAGE_TAGS)
     set(COMMON_FLAGS "${COMMON_FLAGS} -D__MSG_USE_TAGS__=1")
 endif()
 
-if (ENABLE_HYPERV_SOCKETS)
-    set(COMMON_FLAGS "${COMMON_FLAGS} -D__HYPER_V__=1")
+if (ENABLE_VIRTUAL_SOCKETS)
+    set(COMMON_FLAGS "${COMMON_FLAGS} -D__VSOCK__=1")
 endif()
 
 

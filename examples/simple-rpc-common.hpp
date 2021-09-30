@@ -14,7 +14,7 @@ enum class simple_client_function_t
 
 #define USE_ALPC 1
 
-#if defined(__HYPER_V__)
+#if defined(__VSOCK__)
 #   if defined (_WIN32)
 	const wchar_t* vm_id = L"{00000000-0000-0000-0000-000000000000}";      // Hyper-V is a server
 	const wchar_t* service_id = L"{00003039-facb-11e6-bd58-64006a7986d3}"; // must be registered here: "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices"
@@ -23,8 +23,8 @@ enum class simple_client_function_t
     unsigned service_id = 12345; // keep in sync with service_id GUID
 #   endif
 	#define port vm_id, service_id
-	typedef ipc::hyperv_server_socket_engine server_engine_t;
-	typedef ipc::hyperv_client_socket_engine client_engine_t;
+	typedef ipc::virtual_server_socket_engine server_engine_t;
+	typedef ipc::virtual_client_socket_engine client_engine_t;
 #	define ADDRESS_ARGS port
 #elif defined(_WIN32) && defined(USE_ALPC)
 	static const wchar_t* port = L"\\RPC Control\\test_ipc_port";
