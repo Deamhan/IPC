@@ -449,7 +449,7 @@ namespace ipc
         return *this;
     }
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(USE_ALPC)
 
     struct Ntdll
     {
@@ -658,5 +658,5 @@ namespace ipc
         memcpy(response, msg + 1, msg->u1.s1.DataLength);
     }
 
-#endif // _WIN32
+#endif // _WIN32 || USE_ALPC
 }

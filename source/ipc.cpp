@@ -495,7 +495,7 @@ namespace ipc
         return *this;
     }
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(USE_ALPC)
     Ntdll::Ntdll() noexcept
     {
         auto h_ntdll = GetModuleHandleA("ntdll");
@@ -622,5 +622,5 @@ namespace ipc
 
         return 0;
     }
-#endif // _WIN32
+#endif // _WIN32 || USE_ALPC
 }
